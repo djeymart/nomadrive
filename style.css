@@ -218,6 +218,204 @@ select {
     transform: rotate(-45deg) translate(5px, -5px);
 }
 
+/* ===== HERO BOOKING SECTION ===== */
+.hero-booking-section {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 3rem 2rem 4rem;
+    text-align: center;
+}
+
+.hero-booking-inner {
+    max-width: 1100px;
+    margin: 0 auto;
+}
+
+.hero-booking-section .product-badge {
+    display: inline-block;
+    background: linear-gradient(135deg, #0077b6, #00a8e8);
+    color: #fff;
+    font-family: 'Inter', sans-serif;
+    font-size: 0.68rem;
+    font-weight: 600;
+    letter-spacing: 0.15em;
+    padding: 6px 16px;
+    border-radius: 30px;
+    margin-bottom: 1.2rem;
+}
+
+.hero-booking-section .product-title {
+    font-family: 'Playfair Display', serif;
+    font-size: 2.4rem;
+    font-weight: 600;
+    line-height: 1.25;
+    margin-bottom: 1rem;
+    color: #1a1a2e;
+}
+
+.hero-booking-section .hero-description {
+    font-family: 'Inter', sans-serif;
+    font-size: 1.05rem;
+    color: #555;
+    line-height: 1.7;
+    margin-bottom: 2.5rem;
+    max-width: 700px;
+    margin-left: auto;
+    margin-right: auto;
+}
+
+.hero-booking-section .booking-tours-grid {
+    text-align: left;
+}
+
+.hero-booking-section .booking-tour-card {
+    background: #f8f9fb;
+    border: 1px solid #e4e8ee;
+}
+
+.hero-booking-section .booking-tour-card.active {
+    background: #fff;
+    border-color: #0077b6;
+    box-shadow: 0 4px 20px rgba(0, 119, 182, 0.1);
+}
+
+.hero-booking-section .booking-tour-card.active:hover {
+    border-color: #0077b6;
+    box-shadow: 0 8px 30px rgba(0, 119, 182, 0.15);
+}
+
+.hero-booking-section .booking-tour-card.coming-soon {
+    opacity: 0.45;
+}
+
+.hero-booking-section .booking-tour-name {
+    color: #1a1a2e;
+    font-family: 'Inter', sans-serif;
+    font-size: 1.05rem;
+    font-weight: 700;
+    margin: 0;
+}
+
+.hero-booking-section .booking-tour-meta {
+    color: #888;
+}
+
+.hero-booking-section .booking-tour-desc {
+    color: #666;
+}
+
+.hero-booking-section .coming-soon-badge {
+    background: rgba(0, 0, 0, 0.03);
+    border-color: #ddd;
+    color: #999;
+}
+
+.trust-badges-hero {
+    display: flex;
+    justify-content: center;
+    gap: 2rem;
+    margin-top: 2rem;
+    flex-wrap: wrap;
+}
+
+.trust-badges-hero span {
+    font-family: 'Inter', sans-serif;
+    font-size: 0.82rem;
+    color: #888;
+    letter-spacing: 0.02em;
+}
+
+/* Tour CTA Button */
+.tour-cta-btn {
+    display: block;
+    padding: 12px;
+    background: linear-gradient(135deg, #0077b6, #00a8e8);
+    color: #fff;
+    font-family: 'Inter', sans-serif;
+    font-size: 0.85rem;
+    font-weight: 600;
+    text-align: center;
+    border-radius: 10px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    letter-spacing: 0.03em;
+}
+
+.tour-cta-btn:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 6px 20px rgba(0, 119, 182, 0.3);
+}
+
+/* ===== BOOKING MODAL (plein écran) ===== */
+.booking-modal {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 9999;
+    background: rgba(0, 0, 0, 0.6);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    align-items: center;
+    justify-content: center;
+}
+
+.booking-modal.open {
+    display: flex;
+}
+
+.booking-modal-content {
+    position: relative;
+    width: 95%;
+    max-width: 900px;
+    max-height: 90vh;
+    background: #fff;
+    border-radius: 20px;
+    overflow-y: auto;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+    animation: modalSlideIn 0.3s ease;
+}
+
+@keyframes modalSlideIn {
+    from {
+        opacity: 0;
+        transform: translateY(30px) scale(0.97);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
+}
+
+.booking-modal-close {
+    position: sticky;
+    top: 0;
+    float: right;
+    margin: 16px 16px 0 0;
+    width: 40px;
+    height: 40px;
+    background: #f0f0f0;
+    border: none;
+    border-radius: 50%;
+    font-size: 1.1rem;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 10;
+    transition: background 0.2s;
+}
+
+.booking-modal-close:hover {
+    background: #ddd;
+}
+
+.booking-modal-body {
+    padding: 1rem 2rem 2rem;
+}
+
 /* ===== HERO / PRODUCT SECTION ===== */
 .hero-section {
     max-width: 1400px;
@@ -748,7 +946,7 @@ select {
 }
 
 .cta-inner {
-    max-width: 700px;
+    max-width: 1100px;
     margin: 0 auto;
 }
 
@@ -792,9 +990,95 @@ select {
 
 .cta-subtext {
     font-family: 'Inter', sans-serif;
-    margin-top: 1.2rem;
+    margin-top: 1.5rem;
     font-size: 0.82rem;
     color: rgba(255, 255, 255, 0.4);
+}
+
+/* ===== BOOKING TOURS GRID ===== */
+.booking-tours-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 1.5rem;
+    margin-bottom: 0.5rem;
+    text-align: left;
+}
+
+.booking-tour-card {
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 16px;
+    padding: 1.5rem;
+    transition: all 0.3s ease;
+}
+
+.booking-tour-card.active {
+    background: rgba(255, 255, 255, 0.1);
+    border-color: rgba(0, 168, 232, 0.4);
+}
+
+.booking-tour-card.active:hover {
+    border-color: rgba(0, 168, 232, 0.6);
+    transform: translateY(-2px);
+    box-shadow: 0 8px 30px rgba(0, 0, 0, 0.2);
+}
+
+.booking-tour-card.coming-soon {
+    opacity: 0.5;
+    pointer-events: none;
+}
+
+.booking-tour-header {
+    display: flex;
+    align-items: center;
+    gap: 0.8rem;
+    margin-bottom: 0.6rem;
+}
+
+.booking-tour-emoji {
+    font-size: 2rem;
+    line-height: 1;
+}
+
+.booking-tour-name {
+    font-family: 'Inter', sans-serif;
+    font-size: 1rem;
+    font-weight: 700;
+    color: #fff;
+    margin: 0;
+}
+
+.booking-tour-meta {
+    font-family: 'Inter', sans-serif;
+    font-size: 0.78rem;
+    color: rgba(255, 255, 255, 0.5);
+    margin: 2px 0 0;
+}
+
+.booking-tour-desc {
+    font-family: 'Inter', sans-serif;
+    font-size: 0.85rem;
+    color: rgba(255, 255, 255, 0.6);
+    margin-bottom: 1.2rem;
+    line-height: 1.5;
+}
+
+.bokun-widget-wrap {
+    min-height: 60px;
+}
+
+.coming-soon-badge {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 14px;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px dashed rgba(255, 255, 255, 0.15);
+    border-radius: 10px;
+    font-family: 'Inter', sans-serif;
+    font-size: 0.82rem;
+    color: rgba(255, 255, 255, 0.4);
+    letter-spacing: 0.03em;
 }
 
 /* ===== FOOTER ===== */
@@ -1178,11 +1462,160 @@ select {
     transform: translateY(0);
 }
 
+/* ===== CONTACT SECTION ===== */
+.contact-section {
+    padding: 5rem 1.5rem;
+    background: #fdfdfd;
+}
+
+.contact-inner {
+    max-width: 1200px;
+    margin: 0 auto;
+}
+
+.contact-title {
+    font-family: 'Playfair Display', serif;
+    font-size: 2.5rem;
+    color: #1a1a2e;
+    text-align: center;
+    margin-bottom: 3rem;
+}
+
+.contact-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 4rem;
+}
+
+.contact-form-container {
+    background: #fff;
+    padding: 2.5rem;
+    border-radius: 12px;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.05);
+}
+
+.contact-form-container h3 {
+    font-family: 'Playfair Display', serif;
+    font-size: 1.5rem;
+    margin-bottom: 1.5rem;
+    color: #1a1a2e;
+}
+
+.form-group {
+    margin-bottom: 1.5rem;
+}
+
+.form-group label {
+    display: block;
+    font-family: 'Inter', sans-serif;
+    font-size: 0.85rem;
+    font-weight: 600;
+    margin-bottom: 0.5rem;
+    color: #333;
+}
+
+.form-group input, .form-group textarea {
+    width: 100%;
+    padding: 0.8rem 1rem;
+    font-family: 'Inter', sans-serif;
+    border: 1px solid #e0e0e0;
+    border-radius: 8px;
+    font-size: 0.95rem;
+    background: #f9f9f9;
+}
+
+.submit-btn {
+    width: 100%;
+    padding: 1rem;
+    background: linear-gradient(135deg, #0077b6, #00a8e8);
+    color: #fff;
+    border: none;
+    border-radius: 8px;
+    font-family: 'Inter', sans-serif;
+    font-size: 1rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.submit-btn:disabled {
+    opacity: 0.7;
+    cursor: not-allowed;
+}
+
+.submit-btn:hover:not(:disabled) {
+    transform: translateY(-2px);
+    box-shadow: 0 5px 15px rgba(0, 119, 182, 0.3);
+}
+
+.form-msg {
+    margin-top: 1rem;
+    padding: 1rem;
+    border-radius: 8px;
+    font-family: 'Inter', sans-serif;
+    font-size: 0.9rem;
+    display: none;
+}
+
+.form-msg.success { background: #e8f5e9; color: #2e7d32; }
+.form-msg.error { background: #ffebee; color: #c62828; }
+
+.contact-info-container {
+    display: flex;
+    flex-direction: column;
+    gap: 2rem;
+}
+
+.contact-direct-links {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 1rem;
+}
+
+.contact-link {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    padding: 1.2rem;
+    background: #fff;
+    border-radius: 12px;
+    text-decoration: none;
+    color: #333;
+    font-family: 'Inter', sans-serif;
+    font-weight: 600;
+    font-size: 1.1rem;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.05);
+    transition: transform 0.2s;
+}
+
+.contact-link:hover {
+    transform: translateY(-3px);
+}
+
+.contact-link span {
+    font-size: 1.5rem;
+}
+
+.contact-link.whatsapp { color: #25D366; }
+.contact-link.instagram { color: #E1306C; }
+
+.contact-address {
+    font-family: 'Inter', sans-serif;
+    font-size: 1rem;
+    color: #555;
+    line-height: 1.6;
+}
+
 /* ===== RESPONSIVE ===== */
 @media (max-width: 968px) {
     .hero-inner {
         grid-template-columns: 1fr;
         gap: 2rem;
+    }
+
+    .contact-grid {
+        grid-template-columns: 1fr;
+        gap: 2.5rem;
     }
 
     .product-title {
@@ -1232,6 +1665,11 @@ select {
     .testimonials-title,
     .faq-title {
         font-size: 1.8rem;
+    }
+
+    .booking-tours-grid {
+        grid-template-columns: 1fr;
+        gap: 1rem;
     }
 }
 
