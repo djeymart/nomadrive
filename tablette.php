@@ -1,12 +1,21 @@
 <?php
 require_once __DIR__ . '/config.php';
 
+// ─── Identification tablette/véhicule ────────────────────────────────────────
+// Chaque tablette accède via ?key=<licence_key> (16 hex, unique par véhicule)
+// La résolution licence_key → véhicule se fera plus tard via la BDD
+$tablette_key = preg_replace('/[^a-f0-9]/i', '', $_GET['key'] ?? '');
+$tablette_vehicule_id = null;
+
 // ─── Handler Spotify (anciennement spotify_proxy.php) ──────────────────────
 if (isset($_GET['spotify_q'])) {
     header('Content-Type: application/json; charset=utf-8');
 
     $query = trim($_GET['spotify_q']);
-    if (strlen($query) < 2) { echo json_encode(['results' => []]); exit; }
+    if (strlen($query) < 2) {
+        echo json_encode(['results' => []]);
+        exit;
+    }
 
     // Token avec cache fichier
     $cacheFile = sys_get_temp_dir() . '/nomadrive_spotify_token.json';
@@ -20,10 +29,10 @@ if (isset($_GET['spotify_q'])) {
     if (!$token) {
         $ch = curl_init('https://accounts.spotify.com/api/token');
         curl_setopt_array($ch, [
-            CURLOPT_POST           => true,
-            CURLOPT_POSTFIELDS     => 'grant_type=client_credentials',
+            CURLOPT_POST => true,
+            CURLOPT_POSTFIELDS => 'grant_type=client_credentials',
             CURLOPT_RETURNTRANSFER => true,
-            CURLOPT_HTTPHEADER     => [
+            CURLOPT_HTTPHEADER => [
                 'Authorization: Basic ' . base64_encode(SPOTIFY_CLIENT_ID . ':' . SPOTIFY_CLIENT_SECRET),
                 'Content-Type: application/x-www-form-urlencoded',
             ],
@@ -37,38 +46,46 @@ if (isset($_GET['spotify_q'])) {
             if (isset($data['access_token'])) {
                 $token = $data['access_token'];
                 file_put_contents($cacheFile, json_encode([
-                    'token'   => $token,
+                    'token' => $token,
                     'expires' => time() + $data['expires_in'] - 60,
                 ]));
             }
         }
     }
-    if (!$token) { http_response_code(500); echo json_encode(['error' => 'Token Spotify indisponible', 'results' => []]); exit; }
+    if (!$token) {
+        http_response_code(500);
+        echo json_encode(['error' => 'Token Spotify indisponible', 'results' => []]);
+        exit;
+    }
 
     $ch = curl_init('https://api.spotify.com/v1/search?' . http_build_query(['q' => $query, 'type' => 'track', 'limit' => 8, 'market' => 'FR']));
     curl_setopt_array($ch, [
         CURLOPT_RETURNTRANSFER => true,
-        CURLOPT_HTTPHEADER     => ['Authorization: Bearer ' . $token],
-        CURLOPT_TIMEOUT        => 10,
+        CURLOPT_HTTPHEADER => ['Authorization: Bearer ' . $token],
+        CURLOPT_TIMEOUT => 10,
     ]);
     $resp = curl_exec($ch);
     $code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
     curl_close($ch);
 
-    if ($code !== 200) { http_response_code(502); echo json_encode(['error' => 'Erreur Spotify', 'results' => []]); exit; }
+    if ($code !== 200) {
+        http_response_code(502);
+        echo json_encode(['error' => 'Erreur Spotify', 'results' => []]);
+        exit;
+    }
 
-    $data    = json_decode($resp, true);
+    $data = json_decode($resp, true);
     $results = [];
     foreach (($data['tracks']['items'] ?? []) as $track) {
         $image = '';
         if (!empty($track['album']['images']))
             $image = end($track['album']['images'])['url'] ?? $track['album']['images'][0]['url'] ?? '';
         $results[] = [
-            'type'   => 'track',
-            'id'     => $track['id'],
-            'title'  => $track['name'],
+            'type' => 'track',
+            'id' => $track['id'],
+            'title' => $track['name'],
             'artist' => implode(', ', array_map(fn($a) => $a['name'], $track['artists'])),
-            'image'  => $image,
+            'image' => $image,
         ];
     }
     echo json_encode(['results' => $results]);
@@ -879,14 +896,34 @@ if (isset($_GET['spotify_q'])) {
             animation: musicBar 0.8s ease infinite alternate;
         }
 
-        .now-playing-bars span:nth-child(1) { height: 4px; animation-delay: 0s; }
-        .now-playing-bars span:nth-child(2) { height: 8px; animation-delay: 0.2s; }
-        .now-playing-bars span:nth-child(3) { height: 5px; animation-delay: 0.4s; }
-        .now-playing-bars span:nth-child(4) { height: 10px; animation-delay: 0.1s; }
+        .now-playing-bars span:nth-child(1) {
+            height: 4px;
+            animation-delay: 0s;
+        }
+
+        .now-playing-bars span:nth-child(2) {
+            height: 8px;
+            animation-delay: 0.2s;
+        }
+
+        .now-playing-bars span:nth-child(3) {
+            height: 5px;
+            animation-delay: 0.4s;
+        }
+
+        .now-playing-bars span:nth-child(4) {
+            height: 10px;
+            animation-delay: 0.1s;
+        }
 
         @keyframes musicBar {
-            from { height: 3px; }
-            to { height: 14px; }
+            from {
+                height: 3px;
+            }
+
+            to {
+                height: 14px;
+            }
         }
 
         /* GPS status indicator */
@@ -1017,6 +1054,95 @@ if (isset($_GET['spotify_q'])) {
             }
         }
 
+        /* ─── TABLETTES ANDROID (ratio 16:9 / 16:10, plus hautes qu'un iPad) ─── */
+
+        /* Portrait sur grand écran : réduire les espacements verticaux */
+        @media (min-height: 900px) and (orientation: portrait) {
+            .brand-tagline {
+                margin-bottom: 32px;
+            }
+
+            .lang-selector {
+                margin-bottom: 28px;
+            }
+
+            .select-footer {
+                margin-top: 28px;
+            }
+
+            .tour-card {
+                padding: 20px 24px;
+            }
+        }
+
+        /* Paysage sur tablette (hauteur limitée) : mode compact */
+        @media (max-height: 700px) and (orientation: landscape) {
+            .select-content {
+                padding: 16px 32px;
+            }
+
+            .brand-logo {
+                font-size: 24px;
+                margin-bottom: 4px;
+            }
+
+            .brand-tagline {
+                font-size: 11px;
+                margin-bottom: 16px;
+            }
+
+            .lang-selector {
+                margin-bottom: 16px;
+                padding: 3px;
+            }
+
+            .lang-btn {
+                padding: 7px 14px;
+                font-size: 13px;
+            }
+
+            .section-label {
+                margin-bottom: 12px;
+            }
+
+            .tour-cards {
+                flex-direction: row;
+                flex-wrap: wrap;
+                gap: 10px;
+            }
+
+            .tour-card {
+                flex: 1;
+                min-width: 240px;
+                flex-direction: column;
+                text-align: center;
+                padding: 14px 16px;
+            }
+
+            .tour-info {
+                text-align: center;
+            }
+
+            .tour-meta {
+                justify-content: center;
+            }
+
+            .tour-arrow {
+                display: none;
+            }
+
+            .select-footer {
+                margin-top: 16px;
+            }
+
+            .tour-icon {
+                width: 44px;
+                height: 44px;
+                font-size: 20px;
+                margin-bottom: 8px;
+            }
+        }
+
         /* Animation d'entrée */
         @keyframes fadeInUp {
             from {
@@ -1096,14 +1222,14 @@ if (isset($_GET['spotify_q'])) {
                                     <circle cx="12" cy="12" r="10" />
                                     <polyline points="12,6 12,12 16,14" />
                                 </svg>
-                                ~1h
+                                ~2h
                             </span>
                             <span>
                                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                                     <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" />
                                     <circle cx="12" cy="10" r="3" />
                                 </svg>
-                                ~12 km
+                                ~20 km
                             </span>
                         </div>
                     </div>
@@ -1125,14 +1251,14 @@ if (isset($_GET['spotify_q'])) {
                                     <circle cx="12" cy="12" r="10" />
                                     <polyline points="12,6 12,12 16,14" />
                                 </svg>
-                                ~2h
+                                ~2h30
                             </span>
                             <span>
                                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                                     <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" />
                                     <circle cx="12" cy="10" r="3" />
                                 </svg>
-                                ~25 km
+                                ~40 km
                             </span>
                         </div>
                     </div>
@@ -1154,7 +1280,7 @@ if (isset($_GET['spotify_q'])) {
                                     <circle cx="12" cy="12" r="10" />
                                     <polyline points="12,6 12,12 16,14" />
                                 </svg>
-                                ~2h
+                                ~2h30
                             </span>
                             <span>
                                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -1245,8 +1371,8 @@ if (isset($_GET['spotify_q'])) {
                 <div class="music-search-wrap">
                     <div class="music-search">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                            <circle cx="11" cy="11" r="8"/>
-                            <path d="m21 21-4.3-4.3"/>
+                            <circle cx="11" cy="11" r="8" />
+                            <path d="m21 21-4.3-4.3" />
                         </svg>
                         <input type="text" id="musicSearchInput" data-i18n-placeholder="search_placeholder"
                             placeholder="Rechercher un titre, artiste..." autocomplete="off" />
@@ -1292,9 +1418,7 @@ if (isset($_GET['spotify_q'])) {
                 </div>
 
                 <div class="spotify-embed-container">
-                    <iframe
-                        id="spotifyEmbed"
-                        src=""
+                    <iframe id="spotifyEmbed" src=""
                         allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture"
                         loading="lazy">
                     </iframe>
@@ -1344,7 +1468,7 @@ if (isset($_GET['spotify_q'])) {
                 tour1_name: 'Tour 1 — City',
                 tour1_desc: 'Promenade des Anglais, Port & Vieux Nice',
                 tour2_name: 'Tour 2 — French Riviera',
-                tour2_desc: 'Mont Boron, Cap-Ferrat & Villefranche',
+                tour2_desc: 'Nice, Cap-Ferrat & Villefranche',
                 tour3_name: 'Tour 3 — Sunset',
                 tour3_desc: 'Le parcours coucher de soleil sur la Riviera',
                 footer_info: '<strong>Naviguez librement</strong> sur la carte pour découvrir les lieux.<br>Suivez le tracé de votre parcours et explorez à votre rythme.',
@@ -1364,7 +1488,7 @@ if (isset($_GET['spotify_q'])) {
                 tour1_name: 'Tour 1 — City',
                 tour1_desc: 'Promenade des Anglais, Port & Old Nice',
                 tour2_name: 'Tour 2 — French Riviera',
-                tour2_desc: 'Mont Boron, Cap-Ferrat & Villefranche',
+                tour2_desc: 'Nice, Cap-Ferrat & Villefranche',
                 tour3_name: 'Tour 3 — Sunset',
                 tour3_desc: 'The sunset drive along the Riviera',
                 footer_info: '<strong>Navigate freely</strong> on the map to discover places.<br>Follow your route and explore at your own pace.',
@@ -1384,7 +1508,7 @@ if (isset($_GET['spotify_q'])) {
                 tour1_name: 'Tour 1 — City',
                 tour1_desc: 'Promenade des Anglais, Porto & Nizza Vecchia',
                 tour2_name: 'Tour 2 — French Riviera',
-                tour2_desc: 'Mont Boron, Cap-Ferrat & Villefranche',
+                tour2_desc: 'Nice, Cap-Ferrat & Villefranche',
                 tour3_name: 'Tour 3 — Sunset',
                 tour3_desc: 'Il percorso al tramonto sulla Riviera',
                 footer_info: '<strong>Naviga liberamente</strong> sulla mappa per scoprire i luoghi.<br>Segui il tracciato del tuo percorso e esplora al tuo ritmo.',
@@ -1624,16 +1748,31 @@ if (isset($_GET['spotify_q'])) {
         function startGpsTracking() {
             const gpsStatus = document.getElementById('gpsStatus');
 
+            // Afficher "Recherche GPS..."
+            gpsStatus.className = 'gps-status searching';
+            gpsStatus.querySelector('span:last-child').textContent = translations[currentLang].gps_searching;
+
+            // ── Fully Kiosk Browser : utiliser l'API native (plus fiable sur Android kiosk) ──
+            if (typeof fully !== 'undefined' && typeof fully.getGeolocation === 'function') {
+                window.onDeviceGeolocationChanged = function (lat, lng, alt, accuracy, bearing, speed, time) {
+                    const pos = { lat: parseFloat(lat), lng: parseFloat(lng) };
+                    gpsStatus.className = 'gps-status connected';
+                    gpsStatus.querySelector('span:last-child').textContent = translations[currentLang].gps_connected;
+                    updateGpsMarker(pos, parseFloat(accuracy) || 10);
+                    if (isFollowingGps && map) map.panTo(pos);
+                };
+                // provider : "gps" pour haute précision, minTime en ms, minDistance en mètres
+                fully.getGeolocation('gps', GPS_UPDATE_INTERVAL, 0);
+                return;
+            }
+
+            // ── Fallback : API Web Geolocation standard ──
             if (!navigator.geolocation) {
                 gpsStatus.className = 'gps-status error';
                 gpsStatus.querySelector('[data-i18n]').setAttribute('data-i18n', 'gps_error');
                 gpsStatus.querySelector('span:last-child').textContent = translations[currentLang].gps_error;
                 return;
             }
-
-            // Afficher "Recherche GPS..."
-            gpsStatus.className = 'gps-status searching';
-            gpsStatus.querySelector('span:last-child').textContent = translations[currentLang].gps_searching;
 
             gpsWatchId = navigator.geolocation.watchPosition(
                 (position) => {
@@ -1714,6 +1853,11 @@ if (isset($_GET['spotify_q'])) {
         }
 
         function stopGpsTracking() {
+            // Fully Kiosk Browser
+            if (typeof fully !== 'undefined' && typeof fully.stopGeolocation === 'function') {
+                fully.stopGeolocation();
+                window.onDeviceGeolocationChanged = null;
+            }
             if (gpsWatchId !== null) {
                 navigator.geolocation.clearWatch(gpsWatchId);
                 gpsWatchId = null;
@@ -1803,12 +1947,12 @@ if (isset($_GET['spotify_q'])) {
         // IDs des playlists Spotify
         // ⚠️ REMPLACE ces IDs par tes propres playlists NOMADRIVE
         const PLAYLISTS = {
-            chill:   '37i9dQZF1DX4WYpdgoIcn6',  // Chill Hits
-            summer:  '37i9dQZF1DXdPec7aLTmlC',  // Summer Hits  
-            jazz:    '37i9dQZF1DX0SM0LYsmbMT',  // Jazz Vibes
-            pop:     '37i9dQZF1DXcBWIGoYBM5M',  // Today's Top Hits
-            french:  '37i9dQZF1DX1HCSbq0nkYb',  // French Touch
-            sunset:  '37i9dQZF1DX2UgsUIg75Vg'   // Sunset Chill
+            chill: '37i9dQZF1DX4WYpdgoIcn6',  // Chill Hits
+            summer: '37i9dQZF1DXdPec7aLTmlC',  // Summer Hits  
+            jazz: '37i9dQZF1DX0SM0LYsmbMT',  // Jazz Vibes
+            pop: '37i9dQZF1DXcBWIGoYBM5M',  // Today's Top Hits
+            french: '37i9dQZF1DX1HCSbq0nkYb',  // French Touch
+            sunset: '37i9dQZF1DX2UgsUIg75Vg'   // Sunset Chill
         };
 
         // Spotify API pour la recherche

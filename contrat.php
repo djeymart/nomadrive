@@ -1,4 +1,7 @@
 <?php
+// ─── Configuration ────────────────────────────────────────────────────────────
+define('CAUTION_MONTANT', 500); // Montant de la caution en euros — à modifier ici
+
 $madiDir = '/var/www/html/madi.mt';
 if (!is_dir($madiDir))
   $madiDir = dirname(__DIR__); // fallback local
@@ -13,7 +16,7 @@ try {
   $res = $db1->query("
         SELECT id, immatriculation, marque, modele
         FROM nomadrive_vehicules
-        ORDER BY marque, immatriculation
+        ORDER BY id
     ");
   if ($res)
     $vehicules_list = $res->fetchAll(PDO::FETCH_ASSOC);
@@ -51,7 +54,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
   $vehicule = '';
   foreach ($vehicules_list as $v) {
     if ((int) $v['id'] === $vehicule_id) {
-      $vehicule = $v['marque'] . ' ' . $v['modele'] . ' — ' . $v['immatriculation'];
+      $vehicule = '#' . $v['id'] . ' — ' . $v['marque'] . ' ' . $v['modele'] . ' — ' . $v['immatriculation'];
       break;
     }
   }
@@ -147,6 +150,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
     $permis_html .= '</tr></table>';
   }
 
+  $caution_str = CAUTION_MONTANT . ' €';
+
   $pdf_html = <<<HTML
 <!DOCTYPE html>
 <html lang="fr">
@@ -154,7 +159,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
 <body style="font-family:Arial,sans-serif;color:#222;padding:20px;">
   <div style="text-align:center;margin-bottom:20px;">
     <h1 style="color:#0077b6;margin:0;font-size:22px;">NOMADRIVE</h1>
-    <p style="margin:4px 0;color:#555;font-size:12px;">2 place Guynemer, 06000 Nice — contact@nomadrive.fr</p>
+    <p style="margin:2px 0;color:#555;font-size:11px;">NICE ACTIVITY — SAS au capital de 100 000 € — RCS Nice 994 620 615</p>
+    <p style="margin:2px 0;color:#555;font-size:11px;">2 Place Guynemer, 06300 Nice — contact@nomadrive.fr — www.nomadrive.fr</p>
     <h2 style="margin:14px 0 0;font-size:16px;border-bottom:2px solid #0077b6;padding-bottom:6px;">CONTRAT DE LOCATION</h2>
   </div>
 
@@ -185,10 +191,54 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
         <td style="padding:4px 8px;background:#f9f9f9;">{$dossier_empreinte}</td></tr>
   </table>
 
-  <!-- Ici viendra le corps du contrat allégé -->
-  <div style="border:1px solid #ddd;padding:14px;margin-bottom:20px;font-size:12px;line-height:1.7;">
-    <h3 style="margin-top:0;color:#0077b6;font-size:13px;">Conditions générales</h3>
-    <p><em>[ Le texte du contrat allégé sera inséré ici ]</em></p>
+  <div style="border:1px solid #ddd;padding:14px;margin-bottom:20px;font-size:11px;line-height:1.6;">
+    <h3 style="margin-top:0;color:#0077b6;font-size:13px;">DÉCLARATION DU CLIENT / CUSTOMER DECLARATION</h3>
+
+    <p style="font-weight:bold;margin-bottom:4px;">DOCUMENTATION <em style="font-weight:normal;">(remise sous forme électronique)</em> — J'ai lu et j'accepte :</p>
+    <ul style="margin:0 0 6px;padding-left:16px;">
+      <li>Les <strong>Conditions Générales de Location</strong> (ma responsabilité sera engagée en cas de perte ou de dommage au véhicule, voir QR code ci-dessous)</li>
+      <li>Les <strong>Conditions Particulières Spécifiques au Pays</strong> (voir QR code ci-dessous)</li>
+      <li>Les <strong>Conditions des Véhicules Électriques</strong></li>
+      <li>L'<strong>estimation des Frais</strong> (voir au recto)</li>
+      <li>La <strong>Fiche d'État du Véhicule</strong></li>
+    </ul>
+    <p style="color:#888;font-style:italic;margin:2px 0 10px;font-size:10px;">
+      <em>DOCUMENTATION (provided electronically): I have read and accept the General Rental Conditions, Country-Specific Conditions, Electric Vehicle Conditions, Estimated Charges and Vehicle Condition Report.</em>
+    </p>
+
+    <div style="display:flex;justify-content:center;gap:24px;margin:12px 0;text-align:center;font-size:10px;color:#555;">
+      <div>
+        <img src="https://api.qrserver.com/v1/create-qr-code/?size=90x90&data=https%3A%2F%2Fnomadrive.fr%2FCGL_Nomadrive_FR.pdf" width="90" height="90" alt="CGV FR"/>
+        <div style="margin-top:4px;">Conditions générales (FR)</div>
+        <div><a href="https://nomadrive.fr/CGL_Nomadrive_FR.pdf" style="color:#0077b6;">nomadrive.fr/CGL_Nomadrive_FR.pdf</a></div>
+      </div>
+      <div>
+        <img src="https://api.qrserver.com/v1/create-qr-code/?size=90x90&data=https%3A%2F%2Fnomadrive.fr%2FRental_Terms_Nomadrive_EN.pdf" width="90" height="90" alt="CGV EN"/>
+        <div style="margin-top:4px;">Rental Terms (EN)</div>
+        <div><a href="https://nomadrive.fr/Rental_Terms_Nomadrive_EN.pdf" style="color:#0077b6;">nomadrive.fr/Rental_Terms_Nomadrive_EN.pdf</a></div>
+      </div>
+    </div>
+
+    <p style="font-weight:bold;margin-bottom:4px;">PAIEMENT ET FRAIS — J'accepte :</p>
+    <ul style="margin:0 0 6px;padding-left:16px;">
+      <li>De payer les <strong>Frais de Location Estimés</strong></li>
+      <li>De payer les éventuels <strong>Frais Supplémentaires</strong> découlant de la location</li>
+      <li>De payer les coûts de gestion liés aux dommages, amendes ou infractions routières</li>
+      <li>Qu'une <strong>pré-autorisation de {$caution_str}</strong> soit effectuée sur ma carte bancaire</li>
+      <li>Que vous puissiez <strong>prélever</strong> toute somme due, y compris la franchise, sans autorisation supplémentaire</li>
+    </ul>
+    <p style="color:#888;font-style:italic;margin:2px 0 10px;font-size:10px;">
+      <em>PAYMENT AND CHARGES: I agree to pay the Estimated Rental Charges and any Additional Charges, authorise a pre-authorisation of {$caution_str} on my payment card, and agree that any amounts owed may be charged without further authorisation.</em>
+    </p>
+
+    <p style="font-weight:bold;margin-bottom:4px;">INFORMATIONS DU VÉHICULE — J'accepte :</p>
+    <ul style="margin:0 0 6px;padding-left:16px;">
+      <li>L'utilisation d'un <strong>système embarqué</strong> pour localiser le véhicule et surveiller son état et sa performance</li>
+      <li>D'être contacté en cas de problème de sécurité ou opérationnel détecté sur le véhicule</li>
+    </ul>
+    <p style="color:#888;font-style:italic;margin:2px 0;font-size:10px;">
+      <em>VEHICLE INFORMATION: I agree that an onboard system may be used to locate the vehicle and monitor its condition and performance, and that I may be contacted if a safety or operational issue is detected.</em>
+    </p>
   </div>
 
   <h3 style="color:#0077b6;font-size:13px;border-left:3px solid #0077b6;padding-left:8px;">Signature du locataire</h3>
@@ -200,7 +250,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
   {$permis_html}
 
   <hr style="margin:20px 0;border:none;border-top:1px solid #eee;"/>
-  <p style="font-size:10px;color:#999;text-align:center;">NOMADRIVE — 2 place Guynemer, 06000 Nice<br>Ce document tient lieu de contrat de location signé électroniquement.</p>
+  <p style="font-size:10px;color:#999;text-align:center;">NICE ACTIVITY (NOMADRIVE) — SAS au capital de 100 000 € — RCS Nice 994 620 615<br>2 Place Guynemer, 06300 Nice — contact@nomadrive.fr — Ce document tient lieu de contrat de location signé électroniquement.</p>
 </body></html>
 HTML;
 
@@ -250,7 +300,7 @@ HTML;
       </table>
       <p style='font-size:12px;color:#888;'>Ce document tient lieu de contrat signé électroniquement.</p>
       <hr style='border:none;border-top:1px solid #eee;margin:16px 0;'/>
-      <p style='font-size:11px;color:#aaa;text-align:center;'>NOMADRIVE — contact@nomadrive.fr</p>
+      <p style='font-size:11px;color:#aaa;text-align:center;'>NICE ACTIVITY (NOMADRIVE) · SAS au capital de 100 000 € · RCS Nice 994 620 615 · contact@nomadrive.fr</p>
     </div>";
 
   // ── 8. Envoi Sarbacane SMTP ───────────────────────────────────────────────
@@ -321,6 +371,7 @@ HTML;
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
   <!-- Signature pad library -->
   <script src="https://cdn.jsdelivr.net/npm/signature_pad@4.1.7/dist/signature_pad.umd.min.js"></script>
+  <script src="https://kit.fontawesome.com/494ceebc6d.js" crossorigin="anonymous"></script>
   <style>
     *,
     *::before,
@@ -699,6 +750,14 @@ HTML;
     .contract-body p {
       margin-bottom: 8px;
     }
+    .contract-en {
+      color: #888;
+      font-size: 12px;
+      font-style: italic;
+      border-left: 3px solid #ddd;
+      padding-left: 8px;
+      margin: 4px 0 14px;
+    }
 
     /* ── Signature pad ── */
     .sig-wrap {
@@ -945,10 +1004,7 @@ HTML;
 
       <div class="card">
         <div class="card-title">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
-            <circle cx="12" cy="7" r="4" />
-          </svg>
+          <i class="fa-duotone fa-solid fa-user-tie"></i>
           Informations du locataire
         </div>
         <div class="form-grid">
@@ -973,12 +1029,7 @@ HTML;
 
       <div class="card">
         <div class="card-title">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <rect x="1" y="3" width="15" height="13" rx="2" />
-            <path d="M16 8h6l2 4v4h-8V8Z" />
-            <circle cx="5.5" cy="18.5" r="2.5" />
-            <circle cx="18.5" cy="18.5" r="2.5" />
-          </svg>
+          <i class="fa-duotone fa-solid fa-car-side"></i>
           Véhicule loué
         </div>
         <div class="form-grid">
@@ -988,7 +1039,7 @@ HTML;
               <option value="">— Choisir un véhicule —</option>
               <?php foreach ($vehicules_list as $v): ?>
                 <option value="<?= $v['id'] ?>">
-                  <?= htmlspecialchars($v['marque'] . ' ' . $v['modele'] . ' — ' . $v['immatriculation']) ?></option>
+                  <?= htmlspecialchars('#' . $v['id'] . ' — ' . $v['marque'] . ' ' . $v['modele'] . ' — ' . $v['immatriculation']) ?></option>
               <?php endforeach; ?>
             </select>
           </div>
@@ -1009,9 +1060,7 @@ HTML;
 
       <button class="btn btn-primary" onclick="goToStep2()">
         Continuer — Photo du permis
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-          <path d="m9 18 6-6-6-6" />
-        </svg>
+        <i class="fa-solid fa-arrow-right"></i>
       </button>
     </div>
 
@@ -1022,18 +1071,12 @@ HTML;
 
       <div class="card">
         <div class="card-title">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z" />
-            <circle cx="12" cy="13" r="3" />
-          </svg>
+          <i class="fa-duotone fa-solid fa-id-card"></i>
           Permis de conduire — Recto
         </div>
         <div class="photo-area" id="photo-recto" onclick="openCamera('recto')">
           <div class="placeholder">
-            <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-              <path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z" />
-              <circle cx="12" cy="13" r="3" />
-            </svg>
+            <i class="fa-duotone fa-solid fa-camera" style="font-size:38px;color:var(--muted);"></i>
             <span>Appuyer pour photographier le recto</span>
           </div>
           <img id="img-recto" src="" alt="Permis recto">
@@ -1044,18 +1087,12 @@ HTML;
 
       <div class="card">
         <div class="card-title">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z" />
-            <circle cx="12" cy="13" r="3" />
-          </svg>
+          <i class="fa-duotone fa-solid fa-id-card"></i>
           Permis de conduire — Verso
         </div>
         <div class="photo-area" id="photo-verso" onclick="openCamera('verso')">
           <div class="placeholder">
-            <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-              <path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z" />
-              <circle cx="12" cy="13" r="3" />
-            </svg>
+            <i class="fa-duotone fa-solid fa-camera" style="font-size:38px;color:var(--muted);"></i>
             <span>Appuyer pour photographier le verso</span>
           </div>
           <img id="img-verso" src="" alt="Permis verso">
@@ -1065,9 +1102,9 @@ HTML;
       </div>
 
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px;">
-        <button class="btn btn-secondary" onclick="goToStep(1)">← Retour</button>
+        <button class="btn btn-secondary" onclick="goToStep(1)"><i class="fa-solid fa-arrow-left"></i> Retour</button>
         <button class="btn btn-primary" onclick="goToStep3()">
-          Passer au client →
+          Passer au client <i class="fa-solid fa-arrow-right"></i>
         </button>
       </div>
       <p style="text-align:center;font-size:12px;color:var(--muted);">Les photos du permis sont facultatives mais
@@ -1087,10 +1124,7 @@ HTML;
 
       <div class="card">
         <div class="card-title">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-            <polyline points="14,2 14,8 20,8" />
-          </svg>
+          <i class="fa-duotone fa-solid fa-list-check"></i>
           Contrat de location — Récapitulatif
         </div>
         <table style="width:100%;font-size:13px;border-collapse:collapse;">
@@ -1115,60 +1149,61 @@ HTML;
 
       <div class="card">
         <div class="card-title">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-            <polyline points="14,2 14,8 20,8" />
-            <line x1="16" y1="13" x2="8" y2="13" />
-            <line x1="16" y1="17" x2="8" y2="17" />
-          </svg>
+          <i class="fa-duotone fa-solid fa-file-contract"></i>
           Conditions générales de location
         </div>
         <div class="contract-body" id="contract-text">
-          <!-- ╔══════════════════════════════════════════════════════════╗
-             ║  PLACEHOLDER — remplacer par le vrai contrat allégé     ║
-             ╚══════════════════════════════════════════════════════════╝ -->
-          <h4>Article 1 — Objet</h4>
-          <p>Le présent contrat a pour objet la location d'un véhicule électrique de type quadricycle léger par
-            NOMADRIVE (ci-après « le loueur ») au locataire désigné ci-dessus.</p>
+          <h3>DÉCLARATION DU CLIENT / CUSTOMER DECLARATION</h3>
 
-          <h4>Article 2 — Durée de la location</h4>
-          <p>La location prend effet à la date et heure indiquées sur le présent contrat. Le véhicule doit être restitué
-            au plus tard à la date et heure de retour convenues, sauf prolongation accordée par écrit par le loueur.</p>
+          <h4>DOCUMENTATION</h4>
+          <p><em>(remise sous forme électronique)</em> — J'ai lu et j'accepte :</p>
+          <ul>
+            <li>Les <strong>Conditions Générales de Location</strong> (et je note que ma responsabilité sera engagée en cas de perte ou de dommage au véhicule, voir le code QR et l'adresse URL imprimés ci-dessous)</li>
+            <li>Les <strong>Conditions Particulières Spécifiques au Pays</strong> (voir le code QR et l'adresse URL imprimés ci-dessous)</li>
+            <li>Les <strong>Conditions des Véhicules Électriques</strong> (si vous louez un véhicule électrique, voir les Conditions Générales de Location)</li>
+            <li>L'<strong>estimation des Frais</strong> (voir au recto du présent Contrat de Location)</li>
+            <li>La <strong>Fiche d'État du Véhicule</strong> (qui décrit l'état du véhicule au début de la location)</li>
+          </ul>
+          <p class="contract-en"><em>DOCUMENTATION (provided electronically): I have read and accept the General Rental Conditions, Country-Specific Conditions, Electric Vehicle Conditions, Estimated Charges and Vehicle Condition Report.</em></p>
 
-          <h4>Article 3 — Conditions de conduite</h4>
-          <p>Le locataire doit être titulaire d'un permis de conduire valide (catégorie AM ou B). Le véhicule ne peut
-            être conduit que par le locataire désigné au contrat. Il est interdit de prêter, sous-louer ou faire
-            conduire le véhicule par un tiers.</p>
+          <!-- QR CODES CGV -->
+          <div style="display:flex;justify-content:center;gap:32px;margin:14px 0;text-align:center;font-size:12px;color:#555;">
+            <div>
+              <img src="https://api.qrserver.com/v1/create-qr-code/?size=100x100&data=https%3A%2F%2Fnomadrive.fr%2FCGL_Nomadrive_FR.pdf" width="100" height="100" alt="CGV FR"/>
+              <div style="margin-top:5px;">Conditions générales (FR)</div>
+              <div><a href="https://nomadrive.fr/CGL_Nomadrive_FR.pdf" target="_blank" style="color:#0077b6;word-break:break-all;">nomadrive.fr/CGL_Nomadrive_FR.pdf</a></div>
+            </div>
+            <div>
+              <img src="https://api.qrserver.com/v1/create-qr-code/?size=100x100&data=https%3A%2F%2Fnomadrive.fr%2FRental_Terms_Nomadrive_EN.pdf" width="100" height="100" alt="CGV EN"/>
+              <div style="margin-top:5px;">Rental Terms (EN)</div>
+              <div><a href="https://nomadrive.fr/Rental_Terms_Nomadrive_EN.pdf" target="_blank" style="color:#0077b6;word-break:break-all;">nomadrive.fr/Rental_Terms_Nomadrive_EN.pdf</a></div>
+            </div>
+          </div>
 
-          <h4>Article 4 — Utilisation du véhicule</h4>
-          <p>Le locataire s'engage à utiliser le véhicule conformément au code de la route et aux instructions du
-            loueur. Tout usage hors route, sur circuits ou à des fins commerciales est strictement interdit.</p>
+          <h4>PAIEMENT ET FRAIS</h4>
+          <p>J'accepte :</p>
+          <ul>
+            <li>De payer les <strong>Frais de Location Estimés</strong> (voir au recto du présent Contrat de Location)</li>
+            <li>De payer les éventuels <strong>Frais Supplémentaires</strong> qui pourraient découler de la location</li>
+            <li>De payer les éventuels coûts de gestion / indemnité liés au traitement des (i) dommages ou (ii) amendes pour infraction routière / mauvais stationnement ainsi que toute autre charge similaire susceptible de s'appliquer pendant ma location</li>
+            <li>Que vous procédiez à une <strong>pré-autorisation de <?= CAUTION_MONTANT ?> €</strong> sur ma carte bancaire</li>
+            <li>Que vous puissiez <strong>prélever de ma carte bancaire</strong> toutes sommes, frais additionnels et frais administratifs dont je vous serais redevable, y compris la franchise en cas de perte ou de dommage au véhicule, sans autre autorisation de ma part</li>
+          </ul>
+          <p class="contract-en"><em>PAYMENT AND CHARGES: I agree to pay the Estimated Rental Charges and any Additional Charges, authorise a pre-authorisation of <?= CAUTION_MONTANT ?> € on my payment card, and agree that any amounts owed may be charged without further authorisation.</em></p>
 
-          <h4>Article 5 — Responsabilité et dommages</h4>
-          <p>Le locataire est responsable de tout dommage causé au véhicule pendant la durée de la location. En cas
-            d'accident ou d'incident, le locataire doit en informer immédiatement le loueur.</p>
-
-          <h4>Article 6 — Carburant / recharge</h4>
-          <p>Le véhicule est remis avec sa batterie chargée. Le locataire s'engage à restituer le véhicule dans un état
-            de charge équivalent ou à supporter les frais de recharge correspondants.</p>
-
-          <h4>Article 7 — Tarifs et paiement</h4>
-          <p>Le montant de la location est indiqué lors de la réservation. Le paiement est exigible avant la remise des
-            clés.</p>
-
-          <h4>Article 8 — Données personnelles</h4>
-          <p>Les données collectées sont utilisées uniquement dans le cadre de la location et conservées conformément à
-            la réglementation RGPD. Le locataire dispose d'un droit d'accès, de rectification et de suppression.</p>
-
-          <!-- FIN PLACEHOLDER -->
+          <h4>INFORMATIONS DU VÉHICULE</h4>
+          <p>J'accepte que :</p>
+          <ul>
+            <li>Vous puissiez utiliser un <strong>système embarqué</strong> à l'effet de localiser le véhicule, vérifier son état et sa performance (notamment le kilométrage, le niveau de carburant et autres données opérationnelles) ainsi que l'attitude de conduite pendant ma location pour des finalités de sûreté, sécurité et gestion des sinistres, et conserver ces données pour la durée nécessaire à ces finalités</li>
+            <li>Vous puissiez me contacter pendant ou après ma location afin de m'alerter en cas de remontée d'informations du véhicule laissant supposer l'existence d'un problème de sécurité, sûreté ou opérationnel</li>
+          </ul>
+          <p class="contract-en"><em>VEHICLE INFORMATION: I agree that an onboard system may be used to locate the vehicle and monitor its condition and performance, and that I may be contacted if a safety or operational issue is detected.</em></p>
         </div>
       </div>
 
       <button class="btn btn-primary" onclick="goToStep4()">
         Continuer vers la signature
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-          <path d="m9 18 6-6-6-6" />
-        </svg>
+        <i class="fa-solid fa-arrow-right"></i>
       </button>
     </div>
 
@@ -1179,10 +1214,7 @@ HTML;
 
       <div class="card">
         <div class="card-title">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M12 20h9" />
-            <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z" />
-          </svg>
+          <i class="fa-duotone fa-solid fa-signature"></i>
           Votre signature
         </div>
         <p style="font-size:13px;color:var(--muted);margin-bottom:14px;">Signez dans la zone ci-dessous avec votre doigt
@@ -1205,10 +1237,7 @@ HTML;
       </div>
 
       <button class="btn btn-primary" id="btn-submit" onclick="submitContract()" disabled>
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <path d="M22 2L11 13" />
-          <path d="M22 2 15 22 11 13 2 9l20-7z" />
-        </svg>
+        <i class="fa-solid fa-paper-plane"></i>
         Valider et envoyer le contrat
       </button>
       <p style="text-align:center;font-size:12px;color:var(--muted);margin-top:10px;">Le contrat sera envoyé par email à
@@ -1221,9 +1250,7 @@ HTML;
     <div class="screen" id="screen-5">
       <div class="card success-screen">
         <div class="success-icon">
-          <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-            <polyline points="20 6 9 17 4 12" />
-          </svg>
+          <i class="fa-solid fa-check" style="font-size:32px;color:#fff;"></i>
         </div>
         <h2>Contrat signé !</h2>
         <p>Merci <strong id="confirm-prenom"></strong>.</p>

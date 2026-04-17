@@ -290,24 +290,22 @@ select {
 
 .hero-booking-section .booking-tour-name {
     color: #1a1a2e;
-    font-family: 'Inter', sans-serif;
-    font-size: 1.05rem;
-    font-weight: 700;
-    margin: 0;
 }
-
-.hero-booking-section .booking-tour-meta {
-    color: #888;
+.hero-booking-section .booking-tour-meta span {
+    color: #777;
 }
-
+.hero-booking-section .booking-tour-meta i {
+    color: #0077b6;
+}
 .hero-booking-section .booking-tour-desc {
     color: #666;
 }
-
-.hero-booking-section .coming-soon-badge {
-    background: rgba(0, 0, 0, 0.03);
-    border-color: #ddd;
-    color: #999;
+.hero-booking-section .tour-highlights li {
+    color: #555;
+    border-bottom-color: #f0f2f5;
+}
+.hero-booking-section .tour-highlights i {
+    color: #0077b6;
 }
 
 .trust-badges-hero {
@@ -1010,6 +1008,8 @@ select {
     border-radius: 16px;
     padding: 1.5rem;
     transition: all 0.3s ease;
+    display: flex;
+    flex-direction: column;
 }
 
 .booking-tour-card.active {
@@ -1035,32 +1035,76 @@ select {
     margin-bottom: 0.6rem;
 }
 
-.booking-tour-emoji {
-    font-size: 2rem;
-    line-height: 1;
+.tour-card-icon {
+    width: 54px;
+    height: 54px;
+    border-radius: 14px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.4rem;
+    color: #fff;
+    margin-bottom: 1rem;
+    flex-shrink: 0;
 }
+.tour-card-icon.city-icon    { background: linear-gradient(135deg, #0077b6, #00a8e8); }
+.tour-card-icon.riviera-icon { background: linear-gradient(135deg, #0096c7, #48cae4); }
+.tour-card-icon.sunset-icon  { background: linear-gradient(135deg, #e07000, #f5a623); }
 
 .booking-tour-name {
     font-family: 'Inter', sans-serif;
-    font-size: 1rem;
+    font-size: 1.1rem;
     font-weight: 700;
     color: #fff;
-    margin: 0;
+    margin: 0 0 0.4rem;
 }
 
 .booking-tour-meta {
+    display: flex;
+    gap: 1rem;
+    margin-bottom: 0.75rem;
+}
+.booking-tour-meta span {
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
     font-family: 'Inter', sans-serif;
-    font-size: 0.78rem;
+    font-size: 0.82rem;
     color: rgba(255, 255, 255, 0.5);
-    margin: 2px 0 0;
+}
+.booking-tour-meta i {
+    font-size: 0.72rem;
+    color: rgba(255, 255, 255, 0.4);
 }
 
 .booking-tour-desc {
     font-family: 'Inter', sans-serif;
     font-size: 0.85rem;
     color: rgba(255, 255, 255, 0.6);
-    margin-bottom: 1.2rem;
+    margin-bottom: 0.75rem;
     line-height: 1.5;
+}
+
+.tour-highlights {
+    list-style: none;
+    margin: 0 0 1.25rem;
+    flex: 1;
+}
+.tour-highlights li {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-family: 'Inter', sans-serif;
+    font-size: 0.82rem;
+    color: rgba(255, 255, 255, 0.55);
+    padding: 0.38rem 0;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+.tour-highlights li:last-child { border-bottom: none; }
+.tour-highlights i {
+    font-size: 0.65rem;
+    color: rgba(255, 255, 255, 0.35);
+    flex-shrink: 0;
 }
 
 .bokun-widget-wrap {
@@ -1813,5 +1857,243 @@ select {
 
     .elegance-title {
         font-size: 1.5rem;
+    }
+}
+
+/* ── Font Awesome icon helpers ─────────────────────────────────────────────── */
+.trust-icon {
+    color: #0077b6;
+    margin-right: 5px;
+    font-size: 13px;
+}
+.contact-icon {
+    font-size: 1.4rem;
+    width: 28px;
+    text-align: center;
+    flex-shrink: 0;
+}
+.brand-svg {
+    width: 22px;
+    height: 22px;
+    vertical-align: middle;
+    display: inline-block;
+    flex-shrink: 0;
+}
+.contact-link.whatsapp .contact-icon,
+.contact-link.whatsapp .brand-svg { color: #25D366; }
+.contact-link.instagram .contact-icon,
+.contact-link.instagram .brand-svg { color: #E1306C; }
+.booking-tour-emoji i {
+    font-size: 1.8rem;
+    --fa-primary-color: #fff;
+    --fa-secondary-color: rgba(255,255,255,0.55);
+}
+.carousel-btn i { font-size: 16px; }
+.booking-modal-close i { font-size: 1rem; }
+
+/* ── Language switcher ─────────────────────────────────────────────────────── */
+.lang-switcher {
+    display: flex;
+    gap: 4px;
+    align-items: center;
+    margin-right: 8px;
+}
+.lang-btn {
+    font-size: 11px;
+    font-weight: 600;
+    padding: 3px 7px;
+    border-radius: 4px;
+    color: var(--text-light);
+    text-decoration: none;
+    letter-spacing: .04em;
+    transition: background .15s, color .15s;
+}
+.lang-btn:hover { background: rgba(0,0,0,.07); color: var(--text); }
+.lang-btn.active { background: var(--primary); color: #fff; }
+
+/* ── Carousel ──────────────────────────────────────────────────────────────── */
+.carousel-section {
+    position: relative;
+    width: 100%;
+    height: clamp(200px, 45vw, 520px);
+    overflow: hidden;
+    background: #000;
+}
+.carousel-track {
+    display: flex;
+    height: 100%;
+    transition: transform .5s cubic-bezier(.4,0,.2,1);
+}
+.carousel-slide {
+    flex: 0 0 100%;
+    height: 100%;
+}
+.carousel-slide img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+}
+.carousel-placeholder {
+    opacity: .7;
+}
+.carousel-btn {
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+    background: rgba(255,255,255,.75);
+    border: none;
+    border-radius: 50%;
+    width: 40px;
+    height: 40px;
+    font-size: 22px;
+    line-height: 1;
+    cursor: pointer;
+    z-index: 2;
+    transition: background .2s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    backdrop-filter: blur(4px);
+}
+.carousel-btn:hover { background: rgba(255,255,255,.95); }
+.carousel-prev { left: 12px; }
+.carousel-next { right: 12px; }
+.carousel-dots {
+    position: absolute;
+    bottom: 10px;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    gap: 7px;
+    z-index: 2;
+}
+.carousel-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: rgba(255,255,255,.5);
+    cursor: pointer;
+    transition: background .2s, transform .2s;
+    border: none;
+}
+.carousel-dot.active {
+    background: #fff;
+    transform: scale(1.3);
+}
+@media (max-width: 600px) {
+    .carousel-section { height: clamp(160px, 55vw, 300px); }
+    .carousel-btn { width: 32px; height: 32px; font-size: 18px; }
+    .lang-btn { font-size: 10px; padding: 2px 5px; }
+}
+
+/* ===== COOKIE CONSENT BANNER ===== */
+.cookie-banner {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    z-index: 10000;
+    background: rgba(26, 26, 46, 0.97);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    padding: 0;
+    transform: translateY(100%);
+    transition: transform 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+    border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+.cookie-banner.visible {
+    transform: translateY(0);
+}
+.cookie-banner-inner {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 20px 2rem;
+    display: flex;
+    align-items: center;
+    gap: 24px;
+}
+.cookie-banner-icon {
+    flex-shrink: 0;
+    width: 40px;
+    height: 40px;
+    background: rgba(0, 119, 182, 0.15);
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 20px;
+}
+.cookie-banner-text {
+    flex: 1;
+    font-family: 'Inter', sans-serif;
+    font-size: 0.82rem;
+    color: rgba(255, 255, 255, 0.85);
+    line-height: 1.6;
+}
+.cookie-banner-text a {
+    color: #48cae4;
+    text-decoration: underline;
+    text-underline-offset: 2px;
+}
+.cookie-banner-text a:hover {
+    color: #90e0ef;
+}
+.cookie-banner-actions {
+    display: flex;
+    gap: 10px;
+    flex-shrink: 0;
+}
+.cookie-btn {
+    font-family: 'Inter', sans-serif;
+    font-size: 0.8rem;
+    font-weight: 600;
+    padding: 10px 22px;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    border: none;
+    letter-spacing: 0.02em;
+    white-space: nowrap;
+}
+.cookie-btn-accept {
+    background: #0077b6;
+    color: #fff;
+}
+.cookie-btn-accept:hover {
+    background: #00a8e8;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(0, 119, 182, 0.4);
+}
+.cookie-btn-refuse {
+    background: rgba(255, 255, 255, 0.1);
+    color: rgba(255, 255, 255, 0.9);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+}
+.cookie-btn-refuse:hover {
+    background: rgba(255, 255, 255, 0.18);
+    transform: translateY(-1px);
+}
+
+@media (max-width: 768px) {
+    .cookie-banner-inner {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 14px;
+        padding: 18px 1.2rem;
+    }
+    .cookie-banner-icon {
+        display: none;
+    }
+    .cookie-banner-text {
+        font-size: 0.78rem;
+    }
+    .cookie-banner-actions {
+        justify-content: stretch;
+    }
+    .cookie-btn {
+        flex: 1;
+        text-align: center;
+        padding: 12px 16px;
     }
 }
