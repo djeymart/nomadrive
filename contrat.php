@@ -1,4 +1,7 @@
 <?php
+if (session_status() === PHP_SESSION_NONE)
+  session_start();
+
 // ─── Configuration ────────────────────────────────────────────────────────────
 define('CAUTION_MONTANT', 500); // Montant de la caution en euros — à modifier ici
 
@@ -10,18 +13,67 @@ require_once $madiDir . '/php/fonctions.php';
 require_once $madiDir . '/php/config.php';
 $db1->query("SET NAMES 'utf8mb4'");
 
+require_once __DIR__ . '/nomadrive_auth.php';
+
 // ─── Chargement des véhicules ─────────────────────────────────────────────────
-$vehicules_list = [];
+$vehicules_list         = []; // tous (pour lookup POST)
+$vehicules_occupes_ids  = []; // IDs avec dossier ouvert
 try {
-  $res = $db1->query("
-        SELECT id, immatriculation, marque, modele
-        FROM nomadrive_vehicules
-        ORDER BY id
-    ");
-  if ($res)
-    $vehicules_list = $res->fetchAll(PDO::FETCH_ASSOC);
+  $res = $db1->query("SELECT id, immatriculation, marque, modele FROM nomadrive_vehicules ORDER BY id");
+  if ($res) $vehicules_list = $res->fetchAll(PDO::FETCH_ASSOC);
+
+  $occ = $db1->query("SELECT vehicule_id FROM nomadrive_dossiers WHERE statut = 'ouvert'");
+  if ($occ) $vehicules_occupes_ids = array_column($occ->fetchAll(PDO::FETCH_ASSOC), 'vehicule_id');
 } catch (\Exception $e) {
   // Table absente ou erreur DB — on continue avec liste vide
+}
+$preselect_vehicule_id = (int)($_GET['vehicule'] ?? 0);
+
+// ─── Dernier dossier fermé par véhicule (historique pour état avant) ──────────
+$last_dossiers = [];
+try {
+  $hist = $db1->query("
+    SELECT d.vehicule_id, d.etat_apres_km, d.etat_apres_notes, d.closed_at
+    FROM nomadrive_dossiers d
+    INNER JOIN (
+      SELECT vehicule_id, MAX(id) AS max_id
+      FROM nomadrive_dossiers
+      WHERE statut = 'ferme' AND etat_apres_at IS NOT NULL
+      GROUP BY vehicule_id
+    ) latest ON d.id = latest.max_id
+  ");
+  if ($hist) {
+    foreach ($hist->fetchAll(PDO::FETCH_ASSOC) as $row) {
+      $last_dossiers[(int)$row['vehicule_id']] = $row;
+    }
+  }
+} catch (\Exception $e) {}
+
+// ─── Helper upload photos état des lieux ─────────────────────────────────────
+function uploadEtatAvantPhotos(array $b64list, string $ref, string $bucket, string $base): array {
+  $urls = [];
+  foreach ($b64list as $i => $b64) {
+    if (empty($b64) || !preg_match('/^data:(image\/\w+);base64,(.+)$/s', $b64, $m)) continue;
+    $ext = $m[1] === 'image/png' ? 'png' : 'jpg';
+    $tmp = tempnam(sys_get_temp_dir(), 'nd_avant_') . ".$ext";
+    file_put_contents($tmp, base64_decode($m[2]));
+    $gcpPath = "nomadrive/dossiers/{$ref}-avant-" . ($i + 1) . ".$ext";
+    upload_object($bucket, $gcpPath, $tmp, 1);
+    @unlink($tmp);
+    $urls[] = "$base/$gcpPath";
+  }
+  return $urls;
+}
+
+// ─── Auth guard ───────────────────────────────────────────────────────────────
+if (!ndIsAuth($db1)) {
+  if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    header('Content-Type: application/json');
+    echo json_encode(['success' => false, 'message' => 'Session expirée. Veuillez vous reconnecter.']);
+    exit;
+  }
+  header('Location: dashboard.php?view=login');
+  exit;
 }
 
 // ─── Traitement du formulaire (envoi email + BDD) ─────────────────────────────
@@ -58,9 +110,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
       break;
     }
   }
-  $signature = $_POST['signature'] ?? '';    // base64 PNG
-  $permis_r = $_POST['permis_recto'] ?? ''; // base64
-  $permis_v = $_POST['permis_verso'] ?? ''; // base64
+  $signature = $_POST['signature'] ?? '';       // base64 PNG
+  $permis_r = $_POST['permis_recto'] ?? '';    // base64
+  $permis_v = $_POST['permis_verso'] ?? '';    // base64
+  $empreinte_photo = $_POST['empreinte_photo'] ?? ''; // base64
 
   // Chargement du .env — même logique qu'influencify
   $envFile = $madiDir . '/.env';
@@ -138,6 +191,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
     $url_permis_r = $uploadPhoto($permis_r, 'recto');
   if (!empty($permis_v))
     $url_permis_v = $uploadPhoto($permis_v, 'verso');
+  if (!empty($empreinte_photo))
+    $uploadPhoto($empreinte_photo, 'empreinte'); // upload GCP, pas stocké en BDD
 
   // ── 3. Génération du HTML complet du contrat (pour PDF) ───────────────────
   $permis_html = '';
@@ -148,6 +203,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
     if (!empty($permis_v))
       $permis_html .= '<td style="width:50%;padding:8px;text-align:center;"><p style="font-size:12px;color:#555;margin:0 0 4px;">Verso</p><img src="' . $permis_v . '" style="max-width:250px;"/></td>';
     $permis_html .= '</tr></table>';
+  }
+  if (!empty($empreinte_photo)) {
+    $permis_html .= '<h3 style="color:#0077b6;font-size:15px;border-left:3px solid #0077b6;padding-left:10px;margin-top:14px;">Ticket empreinte bancaire</h3>';
+    $permis_html .= '<div style="text-align:center;padding:8px;">';
+    if (!empty($dossier_empreinte))
+      $permis_html .= '<p style="font-size:12px;color:#555;margin:0 0 6px;">N° dossier : <strong>' . htmlspecialchars($dossier_empreinte) . '</strong></p>';
+    $permis_html .= '<img src="' . $empreinte_photo . '" style="max-width:300px;"/></div>';
   }
 
   $caution_str = CAUTION_MONTANT . ' €';
@@ -282,6 +344,27 @@ HTML;
         WHERE id = :id
     ");
   $upd->execute([':pdf' => $url_pdf, ':pr' => $url_permis_r, ':pv' => $url_permis_v, ':id' => $contrat_id]);
+
+  // ── 6b. Création du dossier + sauvegarde état des lieux avant ────────────
+  $etat_avant_km     = (int)($_POST['etat_avant_km'] ?? 0);
+  $etat_avant_notes  = strip_tags(trim($_POST['etat_avant_notes'] ?? ''));
+  $etat_avant_photos = json_decode($_POST['etat_avant_photos_json'] ?? '[]', true) ?: [];
+
+  if ($vehicule_id > 0) {
+    $already_open = $db1->prepare("SELECT id FROM nomadrive_dossiers WHERE vehicule_id = :vid AND statut = 'ouvert' LIMIT 1");
+    $already_open->execute([':vid' => $vehicule_id]);
+    if (!$already_open->fetch()) {
+      $dos = $db1->prepare("INSERT INTO nomadrive_dossiers (contrat_id, vehicule_id, statut, created_at) VALUES (:cid, :vid, 'ouvert', NOW())");
+      $dos->execute([':cid' => $contrat_id, ':vid' => $vehicule_id]);
+      $dossier_id = (int)$db1->lastInsertId();
+
+      if ($dossier_id > 0 && ($etat_avant_km > 0 || !empty($etat_avant_notes) || !empty($etat_avant_photos))) {
+        $urls_avant = uploadEtatAvantPhotos($etat_avant_photos, $contrat_ref, $gcp_bucket, $gcp_base_url);
+        $db1->prepare("UPDATE nomadrive_dossiers SET etat_avant_km=:km, etat_avant_notes=:n, etat_avant_photos=:p, etat_avant_at=NOW() WHERE id=:id")
+            ->execute([':km' => $etat_avant_km ?: null, ':n' => $etat_avant_notes ?: null, ':p' => json_encode($urls_avant), ':id' => $dossier_id]);
+      }
+    }
+  }
 
   // ── 7. Corps email HTML (léger, sans images inline) ───────────────────────
   $email_body = "
@@ -728,6 +811,24 @@ HTML;
       cursor: pointer;
     }
 
+    /* ── Historique véhicule ── */
+    .hist-card{background:#fffbeb;border:1px solid #f0d060;border-radius:10px;padding:14px 16px;margin-bottom:16px}
+    .hist-title{font-size:12px;font-weight:600;color:#856404;text-transform:uppercase;letter-spacing:.04em;margin-bottom:8px;display:flex;align-items:center;gap:6px}
+    .hist-row{font-size:13px;color:var(--text);margin-bottom:4px}
+    .hist-row strong{color:var(--muted);font-weight:500;display:block;font-size:11px;text-transform:uppercase;letter-spacing:.03em}
+
+    /* ── État avant photo grid ── */
+    input[type=number],textarea{width:100%;padding:11px 13px;border:1.5px solid var(--border);border-radius:8px;font-size:15px;font-family:inherit;color:var(--text);background:#fff;transition:border-color .2s;-webkit-appearance:none}
+    input[type=number]:focus,textarea:focus{outline:none;border-color:var(--blue)}
+    textarea{resize:vertical;min-height:80px}
+    .etat-photo-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:12px}
+    .etat-photo-thumb{position:relative;border-radius:8px;overflow:hidden;aspect-ratio:4/3;background:var(--gray);border:1px solid var(--border)}
+    .etat-photo-thumb img{width:100%;height:100%;object-fit:cover;display:block}
+    .etat-photo-thumb .del-btn{position:absolute;top:4px;right:4px;background:rgba(0,0,0,.55);color:#fff;border:none;border-radius:50%;width:22px;height:22px;font-size:12px;cursor:pointer;display:flex;align-items:center;justify-content:center}
+    .btn-add-etat{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;border:2px dashed var(--border);border-radius:8px;padding:14px;cursor:pointer;color:var(--muted);font-size:13px;background:transparent;width:100%;font-family:inherit;transition:border-color .2s}
+    .btn-add-etat:hover{border-color:var(--blue)}
+    @media(max-width:480px){.etat-photo-grid{grid-template-columns:repeat(2,1fr)}}
+
     /* ── Contrat text ── */
     .contract-body {
       font-size: 13px;
@@ -750,6 +851,7 @@ HTML;
     .contract-body p {
       margin-bottom: 8px;
     }
+
     .contract-en {
       color: #888;
       font-size: 12px;
@@ -973,6 +1075,9 @@ HTML;
         <div class="logo">NOMADRIVE</div>
         <div class="subtitle">Contrat de location</div>
       </div>
+      <a href="dashboard.php" style="font-size:13px;color:var(--muted);text-decoration:none;display:flex;align-items:center;gap:6px;">
+        <i class="fa-solid fa-gauge"></i> Dashboard
+      </a>
     </header>
 
     <!-- Barre de progression -->
@@ -988,10 +1093,14 @@ HTML;
         </div>
         <div class="step" id="step-3">
           <div class="step-dot">3</div>
-          <div class="step-label">Contrat</div>
+          <div class="step-label">État avant</div>
         </div>
         <div class="step" id="step-4">
           <div class="step-dot">4</div>
+          <div class="step-label">Contrat</div>
+        </div>
+        <div class="step" id="step-5">
+          <div class="step-dot">5</div>
           <div class="step-label">Signature</div>
         </div>
       </div>
@@ -1038,8 +1147,10 @@ HTML;
             <select id="vehicule">
               <option value="">— Choisir un véhicule —</option>
               <?php foreach ($vehicules_list as $v): ?>
-                <option value="<?= $v['id'] ?>">
-                  <?= htmlspecialchars('#' . $v['id'] . ' — ' . $v['marque'] . ' ' . $v['modele'] . ' — ' . $v['immatriculation']) ?></option>
+                <?php if (in_array((int)$v['id'], $vehicules_occupes_ids)) continue; ?>
+                <option value="<?= $v['id'] ?>" <?= (int)$v['id'] === $preselect_vehicule_id ? 'selected' : '' ?>>
+                  <?= htmlspecialchars('#' . $v['id'] . ' — ' . $v['marque'] . ' ' . $v['modele'] . ' — ' . $v['immatriculation']) ?>
+                </option>
               <?php endforeach; ?>
             </select>
           </div>
@@ -1047,13 +1158,9 @@ HTML;
             <label for="date_debut">Date *</label>
             <input type="date" id="date_debut">
           </div>
-          <div class="form-group">
+          <div class="form-group full">
             <label for="heure_debut">Heure de départ *</label>
             <input type="time" id="heure_debut" step="300">
-          </div>
-          <div class="form-group">
-            <label for="dossier_empreinte">N° dossier empreinte bancaire</label>
-            <input type="text" id="dossier_empreinte" placeholder="ex : 240311-001" autocomplete="off">
           </div>
         </div>
       </div>
@@ -1068,6 +1175,26 @@ HTML;
        ÉCRAN 2 — Photos du permis (secrétaire)
   ════════════════════════════════════════════════════════════ -->
     <div class="screen" id="screen-2">
+
+      <div class="card">
+        <div class="card-title">
+          <i class="fa-duotone fa-solid fa-credit-card"></i>
+          Ticket empreinte bancaire
+        </div>
+        <div class="photo-area" id="photo-empreinte" onclick="openCamera('empreinte')">
+          <div class="placeholder">
+            <i class="fa-duotone fa-solid fa-camera" style="font-size:38px;color:var(--muted);"></i>
+            <span>Appuyer pour photographier le ticket</span>
+          </div>
+          <img id="img-empreinte" src="" alt="Ticket empreinte">
+          <button class="retake-btn" onclick="event.stopPropagation(); openCamera('empreinte')">Reprendre</button>
+        </div>
+        <input type="file" id="file-empreinte" accept="image/*" capture="environment">
+        <div class="form-group" style="margin-top:12px;">
+          <label for="dossier_empreinte">N° dossier (optionnel)</label>
+          <input type="text" id="dossier_empreinte" placeholder="ex : 240311-001" autocomplete="off">
+        </div>
+      </div>
 
       <div class="card">
         <div class="card-title">
@@ -1104,17 +1231,57 @@ HTML;
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px;">
         <button class="btn btn-secondary" onclick="goToStep(1)"><i class="fa-solid fa-arrow-left"></i> Retour</button>
         <button class="btn btn-primary" onclick="goToStep3()">
-          Passer au client <i class="fa-solid fa-arrow-right"></i>
+          État du véhicule <i class="fa-solid fa-arrow-right"></i>
         </button>
       </div>
-      <p style="text-align:center;font-size:12px;color:var(--muted);">Les photos du permis sont facultatives mais
-        recommandées.</p>
+      <p style="text-align:center;font-size:12px;color:var(--muted);">Les photos du permis sont facultatives mais recommandées.</p>
     </div>
 
     <!-- ═══════════════════════════════════════════════════════════
-       ÉCRAN 3 — Lecture du contrat (client)
+       ÉCRAN 3 — État des lieux avant (secrétaire)
   ════════════════════════════════════════════════════════════ -->
     <div class="screen" id="screen-3">
+
+      <!-- Historique dernière location -->
+      <div id="etat-avant-history" style="display:none"></div>
+
+      <div class="card">
+        <div class="card-title"><i class="fa-duotone fa-solid fa-gauge"></i> Kilométrage départ</div>
+        <div class="form-group">
+          <label for="etat-avant-km">Kilométrage actuel</label>
+          <input type="number" id="etat-avant-km" placeholder="ex : 12450" min="0" inputmode="numeric">
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title"><i class="fa-duotone fa-solid fa-camera"></i> Photos du véhicule</div>
+        <div class="etat-photo-grid" id="photo-grid-etat-avant"></div>
+        <button class="btn-add-etat" id="btn-add-etat-avant" onclick="addEtatAvantPhoto()">
+          <i class="fa-solid fa-plus"></i> Ajouter une photo
+        </button>
+        <input type="file" id="file-etat_avant" accept="image/*" capture="environment" style="display:none">
+      </div>
+
+      <div class="card">
+        <div class="card-title"><i class="fa-duotone fa-solid fa-note-sticky"></i> Observations</div>
+        <div class="form-group">
+          <textarea id="etat-avant-notes" placeholder="Rayures, état général, niveau de batterie, remarques…"></textarea>
+        </div>
+      </div>
+
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px;">
+        <button class="btn btn-secondary" onclick="goToStep(2)"><i class="fa-solid fa-arrow-left"></i> Retour</button>
+        <button class="btn btn-primary" onclick="goToStep4()">
+          Passer au client <i class="fa-solid fa-arrow-right"></i>
+        </button>
+      </div>
+      <p style="text-align:center;font-size:12px;color:var(--muted);">Le kilométrage et les photos sont facultatifs.</p>
+    </div>
+
+    <!-- ═══════════════════════════════════════════════════════════
+       ÉCRAN 4 — Lecture du contrat (client)
+  ════════════════════════════════════════════════════════════ -->
+    <div class="screen" id="screen-4">
 
       <div class="card" style="background:linear-gradient(135deg,#e8f4fd,#f0f9ff);border-color:#b3d9f5;">
         <p style="font-size:14px;font-weight:600;color:var(--blue);">Bonjour <span id="display-prenom"></span>,</p>
@@ -1158,59 +1325,88 @@ HTML;
           <h4>DOCUMENTATION</h4>
           <p><em>(remise sous forme électronique)</em> — J'ai lu et j'accepte :</p>
           <ul>
-            <li>Les <strong>Conditions Générales de Location</strong> (et je note que ma responsabilité sera engagée en cas de perte ou de dommage au véhicule, voir le code QR et l'adresse URL imprimés ci-dessous)</li>
-            <li>Les <strong>Conditions Particulières Spécifiques au Pays</strong> (voir le code QR et l'adresse URL imprimés ci-dessous)</li>
-            <li>Les <strong>Conditions des Véhicules Électriques</strong> (si vous louez un véhicule électrique, voir les Conditions Générales de Location)</li>
+            <li>Les <strong>Conditions Générales de Location</strong> (et je note que ma responsabilité sera engagée en
+              cas de perte ou de dommage au véhicule, voir le code QR et l'adresse URL imprimés ci-dessous)</li>
+            <li>Les <strong>Conditions Particulières Spécifiques au Pays</strong> (voir le code QR et l'adresse URL
+              imprimés ci-dessous)</li>
+            <li>Les <strong>Conditions des Véhicules Électriques</strong> (si vous louez un véhicule électrique, voir
+              les Conditions Générales de Location)</li>
             <li>L'<strong>estimation des Frais</strong> (voir au recto du présent Contrat de Location)</li>
-            <li>La <strong>Fiche d'État du Véhicule</strong> (qui décrit l'état du véhicule au début de la location)</li>
+            <li>La <strong>Fiche d'État du Véhicule</strong> (qui décrit l'état du véhicule au début de la location)
+            </li>
           </ul>
-          <p class="contract-en"><em>DOCUMENTATION (provided electronically): I have read and accept the General Rental Conditions, Country-Specific Conditions, Electric Vehicle Conditions, Estimated Charges and Vehicle Condition Report.</em></p>
+          <p class="contract-en"><em>DOCUMENTATION (provided electronically): I have read and accept the General Rental
+              Conditions, Country-Specific Conditions, Electric Vehicle Conditions, Estimated Charges and Vehicle
+              Condition Report.</em></p>
 
           <!-- QR CODES CGV -->
-          <div style="display:flex;justify-content:center;gap:32px;margin:14px 0;text-align:center;font-size:12px;color:#555;">
+          <div
+            style="display:flex;justify-content:center;gap:32px;margin:14px 0;text-align:center;font-size:12px;color:#555;">
             <div>
-              <img src="https://api.qrserver.com/v1/create-qr-code/?size=100x100&data=https%3A%2F%2Fnomadrive.fr%2FCGL_Nomadrive_FR.pdf" width="100" height="100" alt="CGV FR"/>
+              <img
+                src="https://api.qrserver.com/v1/create-qr-code/?size=100x100&data=https%3A%2F%2Fnomadrive.fr%2FCGL_Nomadrive_FR.pdf"
+                width="100" height="100" alt="CGV FR" />
               <div style="margin-top:5px;">Conditions générales (FR)</div>
-              <div><a href="https://nomadrive.fr/CGL_Nomadrive_FR.pdf" target="_blank" style="color:#0077b6;word-break:break-all;">nomadrive.fr/CGL_Nomadrive_FR.pdf</a></div>
+              <div><a href="https://nomadrive.fr/CGL_Nomadrive_FR.pdf" target="_blank"
+                  style="color:#0077b6;word-break:break-all;">nomadrive.fr/CGL_Nomadrive_FR.pdf</a></div>
             </div>
             <div>
-              <img src="https://api.qrserver.com/v1/create-qr-code/?size=100x100&data=https%3A%2F%2Fnomadrive.fr%2FRental_Terms_Nomadrive_EN.pdf" width="100" height="100" alt="CGV EN"/>
+              <img
+                src="https://api.qrserver.com/v1/create-qr-code/?size=100x100&data=https%3A%2F%2Fnomadrive.fr%2FRental_Terms_Nomadrive_EN.pdf"
+                width="100" height="100" alt="CGV EN" />
               <div style="margin-top:5px;">Rental Terms (EN)</div>
-              <div><a href="https://nomadrive.fr/Rental_Terms_Nomadrive_EN.pdf" target="_blank" style="color:#0077b6;word-break:break-all;">nomadrive.fr/Rental_Terms_Nomadrive_EN.pdf</a></div>
+              <div><a href="https://nomadrive.fr/Rental_Terms_Nomadrive_EN.pdf" target="_blank"
+                  style="color:#0077b6;word-break:break-all;">nomadrive.fr/Rental_Terms_Nomadrive_EN.pdf</a></div>
             </div>
           </div>
 
           <h4>PAIEMENT ET FRAIS</h4>
           <p>J'accepte :</p>
           <ul>
-            <li>De payer les <strong>Frais de Location Estimés</strong> (voir au recto du présent Contrat de Location)</li>
-            <li>De payer les éventuels <strong>Frais Supplémentaires</strong> qui pourraient découler de la location</li>
-            <li>De payer les éventuels coûts de gestion / indemnité liés au traitement des (i) dommages ou (ii) amendes pour infraction routière / mauvais stationnement ainsi que toute autre charge similaire susceptible de s'appliquer pendant ma location</li>
-            <li>Que vous procédiez à une <strong>pré-autorisation de <?= CAUTION_MONTANT ?> €</strong> sur ma carte bancaire</li>
-            <li>Que vous puissiez <strong>prélever de ma carte bancaire</strong> toutes sommes, frais additionnels et frais administratifs dont je vous serais redevable, y compris la franchise en cas de perte ou de dommage au véhicule, sans autre autorisation de ma part</li>
+            <li>De payer les <strong>Frais de Location Estimés</strong> (voir au recto du présent Contrat de Location)
+            </li>
+            <li>De payer les éventuels <strong>Frais Supplémentaires</strong> qui pourraient découler de la location
+            </li>
+            <li>De payer les éventuels coûts de gestion / indemnité liés au traitement des (i) dommages ou (ii) amendes
+              pour infraction routière / mauvais stationnement ainsi que toute autre charge similaire susceptible de
+              s'appliquer pendant ma location</li>
+            <li>Que vous procédiez à une <strong>pré-autorisation de <?= CAUTION_MONTANT ?> €</strong> sur ma carte
+              bancaire</li>
+            <li>Que vous puissiez <strong>prélever de ma carte bancaire</strong> toutes sommes, frais additionnels et
+              frais administratifs dont je vous serais redevable, y compris la franchise en cas de perte ou de dommage
+              au véhicule, sans autre autorisation de ma part</li>
           </ul>
-          <p class="contract-en"><em>PAYMENT AND CHARGES: I agree to pay the Estimated Rental Charges and any Additional Charges, authorise a pre-authorisation of <?= CAUTION_MONTANT ?> € on my payment card, and agree that any amounts owed may be charged without further authorisation.</em></p>
+          <p class="contract-en"><em>PAYMENT AND CHARGES: I agree to pay the Estimated Rental Charges and any Additional
+              Charges, authorise a pre-authorisation of <?= CAUTION_MONTANT ?> € on my payment card, and agree that any
+              amounts owed may be charged without further authorisation.</em></p>
 
           <h4>INFORMATIONS DU VÉHICULE</h4>
           <p>J'accepte que :</p>
           <ul>
-            <li>Vous puissiez utiliser un <strong>système embarqué</strong> à l'effet de localiser le véhicule, vérifier son état et sa performance (notamment le kilométrage, le niveau de carburant et autres données opérationnelles) ainsi que l'attitude de conduite pendant ma location pour des finalités de sûreté, sécurité et gestion des sinistres, et conserver ces données pour la durée nécessaire à ces finalités</li>
-            <li>Vous puissiez me contacter pendant ou après ma location afin de m'alerter en cas de remontée d'informations du véhicule laissant supposer l'existence d'un problème de sécurité, sûreté ou opérationnel</li>
+            <li>Vous puissiez utiliser un <strong>système embarqué</strong> à l'effet de localiser le véhicule, vérifier
+              son état et sa performance (notamment le kilométrage, le niveau de carburant et autres données
+              opérationnelles) ainsi que l'attitude de conduite pendant ma location pour des finalités de sûreté,
+              sécurité et gestion des sinistres, et conserver ces données pour la durée nécessaire à ces finalités</li>
+            <li>Vous puissiez me contacter pendant ou après ma location afin de m'alerter en cas de remontée
+              d'informations du véhicule laissant supposer l'existence d'un problème de sécurité, sûreté ou opérationnel
+            </li>
           </ul>
-          <p class="contract-en"><em>VEHICLE INFORMATION: I agree that an onboard system may be used to locate the vehicle and monitor its condition and performance, and that I may be contacted if a safety or operational issue is detected.</em></p>
+          <p class="contract-en"><em>VEHICLE INFORMATION: I agree that an onboard system may be used to locate the
+              vehicle and monitor its condition and performance, and that I may be contacted if a safety or operational
+              issue is detected.</em></p>
         </div>
       </div>
 
-      <button class="btn btn-primary" onclick="goToStep4()">
+      <button class="btn btn-primary" onclick="goToStep5()">
         Continuer vers la signature
         <i class="fa-solid fa-arrow-right"></i>
       </button>
     </div>
 
     <!-- ═══════════════════════════════════════════════════════════
-       ÉCRAN 4 — Signature (client)
+       ÉCRAN 5 — Signature (client)
   ════════════════════════════════════════════════════════════ -->
-    <div class="screen" id="screen-4">
+    <div class="screen" id="screen-5">
 
       <div class="card">
         <div class="card-title">
@@ -1241,13 +1437,14 @@ HTML;
         Valider et envoyer le contrat
       </button>
       <p style="text-align:center;font-size:12px;color:var(--muted);margin-top:10px;">Le contrat sera envoyé par email à
-        <strong id="display-email"></strong></p>
+        <strong id="display-email"></strong>
+      </p>
     </div>
 
     <!-- ═══════════════════════════════════════════════════════════
-       ÉCRAN 5 — Confirmation
+       ÉCRAN 6 — Confirmation
   ════════════════════════════════════════════════════════════ -->
-    <div class="screen" id="screen-5">
+    <div class="screen" id="screen-6">
       <div class="card success-screen">
         <div class="success-icon">
           <i class="fa-solid fa-check" style="font-size:32px;color:#fff;"></i>
@@ -1284,12 +1481,17 @@ HTML;
 
   <script>
     // ─────────────────────────────────────────────────────────────────────────────
+    // HISTORIQUE VÉHICULES (dernier dossier fermé par véhicule)
+    const lastDossiers = <?= json_encode($last_dossiers) ?>;
+
     // STATE
     // ─────────────────────────────────────────────────────────────────────────────
     const state = {
-      permisRecto: null,  // base64 image
+      permisRecto: null,
       permisVerso: null,
-      currentPhotoTarget: null,  // 'recto' | 'verso'
+      empreintePhoto: null,
+      etatAvantPhotos: [],
+      currentPhotoTarget: null,
       cameraStream: null,
       signaturePad: null,
     };
@@ -1328,29 +1530,57 @@ HTML;
     }
 
     function goToStep3() {
-      const prenom = document.getElementById('prenom').value.trim();
-      const nom = document.getElementById('nom').value.trim();
-      const vehiculeSel = document.getElementById('vehicule');
-      const vehiculeText = vehiculeSel.options[vehiculeSel.selectedIndex]?.text || '—';
-      const debut = document.getElementById('date_debut').value;
-      const hd = document.getElementById('heure_debut').value;
+      const vehiculeId = document.getElementById('vehicule').value;
+      const hist = lastDossiers[vehiculeId];
+      const histEl = document.getElementById('etat-avant-history');
 
-      document.getElementById('display-prenom').textContent = prenom || 'vous';
-      document.getElementById('recap-nom').textContent = (prenom + ' ' + nom).trim();
-      document.getElementById('recap-vehicule').textContent = vehiculeText;
-      document.getElementById('recap-debut').textContent = debut ? `${formatDate(debut)} à ${hd}` : '—';
-      document.getElementById('recap-heures').textContent = document.getElementById('dossier_empreinte').value.trim() || '—';
+      if (hist && (hist.etat_apres_km || hist.etat_apres_notes)) {
+        const date = hist.closed_at ? hist.closed_at.substring(0, 10).split('-').reverse().join('/') : '';
+        let html = `<div class="hist-card"><div class="hist-title"><i class="fa-solid fa-clock-rotate-left"></i> Dernière clôture${date ? ' — ' + date : ''}</div>`;
+        if (hist.etat_apres_km) {
+          html += `<div class="hist-row"><strong>Km au retour</strong>${parseInt(hist.etat_apres_km).toLocaleString('fr-FR')} km</div>`;
+          // Pré-remplir le champ km si vide
+          const kmField = document.getElementById('etat-avant-km');
+          if (!kmField.value) kmField.value = hist.etat_apres_km;
+        }
+        if (hist.etat_apres_notes) {
+          html += `<div class="hist-row" style="margin-top:8px"><strong>Observations / dommages</strong>${escHtml(hist.etat_apres_notes)}</div>`;
+        }
+        html += '</div>';
+        histEl.innerHTML = html;
+        histEl.style.display = '';
+      } else {
+        histEl.style.display = 'none';
+      }
 
       goToStep(3);
     }
 
+    function escHtml(str) {
+      return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+    }
+
     function goToStep4() {
-      const email = document.getElementById('email').value.trim();
-      document.getElementById('display-email').textContent = email;
+      const prenom = document.getElementById('prenom').value.trim();
+      const nom    = document.getElementById('nom').value.trim();
+      const vehiculeSel  = document.getElementById('vehicule');
+      const vehiculeText = vehiculeSel.options[vehiculeSel.selectedIndex]?.text || '—';
+      const debut = document.getElementById('date_debut').value;
+      const hd    = document.getElementById('heure_debut').value;
+
+      document.getElementById('display-prenom').textContent = prenom || 'vous';
+      document.getElementById('recap-nom').textContent      = (prenom + ' ' + nom).trim();
+      document.getElementById('recap-vehicule').textContent = vehiculeText;
+      document.getElementById('recap-debut').textContent    = debut ? `${formatDate(debut)} à ${hd}` : '—';
+      document.getElementById('recap-heures').textContent   = document.getElementById('dossier_empreinte').value.trim() || '—';
 
       goToStep(4);
+    }
 
-      // Init signature pad (après affichage)
+    function goToStep5() {
+      const email = document.getElementById('email').value.trim();
+      document.getElementById('display-email').textContent = email;
+      goToStep(5);
       setTimeout(initSignaturePad, 100);
     }
 
@@ -1404,8 +1634,8 @@ HTML;
       document.getElementById('camera-modal').classList.remove('open');
     }
 
-    // Fallback file input
-    ['recto', 'verso'].forEach(side => {
+    // Fallback file inputs
+    ['recto', 'verso', 'empreinte', 'etat_avant'].forEach(side => {
       document.getElementById('file-' + side).addEventListener('change', function () {
         const file = this.files[0];
         if (!file) return;
@@ -1422,11 +1652,53 @@ HTML;
         state.permisRecto = dataUrl;
         document.getElementById('img-recto').src = dataUrl;
         document.getElementById('photo-recto').classList.add('has-photo');
-      } else {
+      } else if (side === 'verso') {
         state.permisVerso = dataUrl;
         document.getElementById('img-verso').src = dataUrl;
         document.getElementById('photo-verso').classList.add('has-photo');
+      } else if (side === 'empreinte') {
+        state.empreintePhoto = dataUrl;
+        document.getElementById('img-empreinte').src = dataUrl;
+        document.getElementById('photo-empreinte').classList.add('has-photo');
+      } else if (side === 'etat_avant') {
+        state.etatAvantPhotos.push(dataUrl);
+        renderEtatAvantGrid();
       }
+    }
+
+    function addEtatAvantPhoto() {
+      if (state.etatAvantPhotos.length >= 8) { showToast('Maximum 8 photos.'); return; }
+      state.currentPhotoTarget = 'etat_avant';
+      if (navigator.mediaDevices?.getUserMedia) {
+        navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } })
+          .then(stream => {
+            state.cameraStream = stream;
+            document.getElementById('camera-video').srcObject = stream;
+            document.getElementById('camera-modal').classList.add('open');
+          })
+          .catch(() => document.getElementById('file-etat_avant').click());
+      } else {
+        document.getElementById('file-etat_avant').click();
+      }
+    }
+
+    function renderEtatAvantGrid() {
+      const grid = document.getElementById('photo-grid-etat-avant');
+      if (!grid) return;
+      grid.innerHTML = '';
+      state.etatAvantPhotos.forEach((src, i) => {
+        const div = document.createElement('div');
+        div.className = 'etat-photo-thumb';
+        div.innerHTML = `<img src="${src}"><button class="del-btn" onclick="removeEtatAvantPhoto(${i})">✕</button>`;
+        grid.appendChild(div);
+      });
+      const btn = document.getElementById('btn-add-etat-avant');
+      if (btn) btn.style.display = state.etatAvantPhotos.length >= 8 ? 'none' : '';
+    }
+
+    function removeEtatAvantPhoto(idx) {
+      state.etatAvantPhotos.splice(idx, 1);
+      renderEtatAvantGrid();
     }
 
     // ─────────────────────────────────────────────────────────────────────────────
@@ -1485,6 +1757,10 @@ HTML;
       payload.append('signature', state.signaturePad.toDataURL('image/png'));
       payload.append('permis_recto', state.permisRecto || '');
       payload.append('permis_verso', state.permisVerso || '');
+      payload.append('empreinte_photo', state.empreintePhoto || '');
+      payload.append('etat_avant_km', document.getElementById('etat-avant-km').value || '0');
+      payload.append('etat_avant_notes', document.getElementById('etat-avant-notes').value.trim());
+      payload.append('etat_avant_photos_json', JSON.stringify(state.etatAvantPhotos));
 
       try {
         const resp = await fetch('contrat.php', { method: 'POST', body: payload });
@@ -1495,7 +1771,7 @@ HTML;
           const email = document.getElementById('email').value.trim();
           document.getElementById('confirm-prenom').textContent = prenom;
           document.getElementById('confirm-email').textContent = email;
-          goToStep(5);
+          goToStep(6);
           // Masquer la barre de progression
           document.querySelector('.steps').parentElement.style.display = 'none';
         } else {
@@ -1524,11 +1800,15 @@ HTML;
       document.getElementById('accept-terms').checked = false;
 
       // Reset photos
-      state.permisRecto = state.permisVerso = null;
-      ['recto', 'verso'].forEach(s => {
+      state.permisRecto = state.permisVerso = state.empreintePhoto = null;
+      state.etatAvantPhotos = [];
+      ['recto', 'verso', 'empreinte'].forEach(s => {
         document.getElementById('photo-' + s).classList.remove('has-photo');
         document.getElementById('img-' + s).src = '';
       });
+      renderEtatAvantGrid();
+      document.getElementById('etat-avant-km').value = '';
+      document.getElementById('etat-avant-notes').value = '';
 
       // Reset signature
       if (state.signaturePad) state.signaturePad.clear();

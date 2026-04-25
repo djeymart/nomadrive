@@ -11,8 +11,8 @@ $t = [
         'nav_contact' => 'Contact',
         'nav_book' => 'Réserver',
         'hero_badge' => 'L\'EXPÉRIENCE NOMADRIVE',
-        'hero_title' => 'Vivez la Côte d\'Azur comme un initié',
-        'hero_desc' => 'Dans notre local face à la mer, tout commence par un café. Votre guide vous confie ensuite les clés d\'un <strong>Ami Buggy ou Topolino Dolcevita</strong> — ouverts sur la Riviera, tablette et système audio à bord — pour vous dévoiler panoramas confidentiels, anecdotes et adresses secrètes. Attentions pensées dans les moindres détails, rythme entièrement à vous. Pas un tour&nbsp;: une expérience.',
+        'hero_title' => 'Découvrez la Côte d\'Azur en toute liberté',
+        'hero_desc' => 'Votre aventure commence ici — visites guidées en véhicules 100% électriques. <br /><strong>❤️ Choisissez vos tours ❤️</strong>',
         'trust_elec' => '100% électrique',
         'trust_guide' => 'Suivez notre guide local !',
         'trust_permit' => 'Permis B exigé',
@@ -48,6 +48,18 @@ $t = [
         'footer_copyright' => '© 2026 NOMADRIVE — Tours guidés en voiture électrique à Nice. Tous droits réservés.',
         'footer_privacy' => 'Confidentialité',
         'footer_legal' => 'Mentions légales',
+        'tours_desc_title' => 'DESCRIPTION DES TOURS',
+        'tours_details_label' => '✨ L\'EXPÉRIENCE NOMADRIVE',
+        'tours_details_body' => 'Tout commence dans notre local face à la mer, au Port de Nice, autour d\'un café de bienvenue. Nous vous confions ensuite les clés d\'un <strong>Ami Buggy ou Topolino Dolcevita</strong> — 100&nbsp;% électriques, ouverts sur le paysage, tablette et système audio à bord.<br><br>Un guide dédié vous accompagne pour dévoiler panoramas confidentiels, anecdotes et trésors cachés de la Riviera. Chaque tour est ponctué de collations pensées pour vous.<br><br>Pas de groupe impersonnel, pas de course — vous roulez à votre rythme, avec style.',
+        'tour1_title' => '🏙️ CITY — 20 km · 2h',
+        'tour1_body' => 'De la Promenade des Anglais au Château de Nice : le Negresco, la Cathédrale Orthodoxe Russe, les Arènes de Cimiez, le Boulevard Maeterlinck suspendu entre falaises et mer. Un panorama exceptionnel sur la Baie des Anges en point d\'orgue.<br><span class="tour-tags">Guide dédié · Collation incluse</span>',
+        'tour2_title' => '🌊 FRENCH RIVIERA — 35 km · 2h30',
+        'tour2_body' => 'Nice, La Réserve, Villefranche-sur-Mer et sa rade légendaire, Saint-Jean-Cap-Ferrat et ses villas Belle Époque, jusqu\'à Beaulieu-sur-Mer surnommée la « Petite Afrique ». Une pause baignade et collation face à la mer incluses. Pensez à votre maillot.<br><span class="tour-tags">Guide dédié · Surprise · Collation incluse</span>',
+        'tour3_title' => '🌅 SUNSET — 35 km · 2h30',
+        'tour3_body' => 'La Promenade, Villefranche sous la lumière du soir, puis le Château de Nice juste avant le coucher de soleil. Un apéritif face à la Baie des Anges vous attend au belvédère — boissons fraîches et planche gourmande. Heure de départ ajustée selon la saison.<br><span class="tour-tags">Guide dédié · Apéritif au coucher de soleil</span>',
+        'tour_vehicle_note' => 'Prix pour 1 véhicule complet — conducteur + passager inclus',
+        'tour_coming_soon' => 'Réservation bientôt disponible',
+        'book_btn' => 'Réserver',
     ],
     'en' => [
         'nav_tours' => 'Our tours',
@@ -55,8 +67,8 @@ $t = [
         'nav_contact' => 'Contact',
         'nav_book' => 'Book now',
         'hero_badge' => 'THE NOMADRIVE EXPERIENCE',
-        'hero_title' => 'Experience the Riviera like an insider',
-        'hero_desc' => 'In our sea-view space in Nice\'s Port district, it starts with a coffee. Your guide then hands you the keys to an <strong>Ami Buggy or Topolino Dolcevita</strong> — open-air, fully electric, with an on-board tablet and audio — to uncover hidden panoramas, local secrets and off-the-beaten-path addresses. Thoughtful touches, your own pace. Not a tour: an experience.',
+        'hero_title' => 'Discover the Côte d\'Azur in complete freedom',
+        'hero_desc' => 'Your adventure starts here — guided tours in 100% electric vehicles. <br /><strong>❤️ Choose your tour ❤️</strong>',
         'trust_elec' => '100% electric',
         'trust_guide' => 'Follow our local guide!',
         'trust_permit' => 'Driving licence required',
@@ -92,6 +104,18 @@ $t = [
         'footer_copyright' => '© 2026 NOMADRIVE — Guided electric car tours in Nice. All rights reserved.',
         'footer_privacy' => 'Privacy',
         'footer_legal' => 'Legal notice',
+        'tours_desc_title' => 'TOUR DESCRIPTIONS',
+        'tours_details_label' => '✨ THE NOMADRIVE EXPERIENCE',
+        'tours_details_body' => 'It all starts in our sea-view space at Nice\'s Port, over a welcome coffee. We hand you the keys to an <strong>Ami Buggy or Topolino Dolcevita</strong> — 100% electric, open to the landscape, with an on-board tablet and audio system.<br><br>A dedicated guide accompanies you to reveal hidden panoramas, local stories and secret gems of the Riviera. Each tour includes thoughtful snacks along the way.<br><br>No impersonal groups, no rushing — your pace, your style.',
+        'tour1_title' => '🏙️ CITY — 20 km · 2h',
+        'tour1_body' => 'From the Promenade des Anglais to the Château de Nice: the Negresco, the Russian Orthodox Cathedral, the Roman arenas of Cimiez, the Maeterlinck Boulevard suspended between cliffs and sea. An exceptional panorama over the Baie des Anges.<br><span class="tour-tags">Dedicated guide · Snack included</span>',
+        'tour2_title' => '🌊 FRENCH RIVIERA — 35 km · 2h30',
+        'tour2_body' => 'Nice, La Réserve, Villefranche-sur-Mer and its legendary bay, Saint-Jean-Cap-Ferrat with its Belle Époque villas, up to Beaulieu-sur-Mer known as the « Petite Afrique ». A swim break and seaside snack included. Don\'t forget your swimsuit.<br><span class="tour-tags">Dedicated guide · Surprise · Snack included</span>',
+        'tour3_title' => '🌅 SUNSET — 35 km · 2h30',
+        'tour3_body' => 'The Promenade, Villefranche in the evening light, then the Château de Nice just before sunset. An aperitif overlooking the Baie des Anges awaits — cold drinks and a charcuterie board. Departure time adjusted to capture the exact sunset.<br><span class="tour-tags">Dedicated guide · Sunset aperitif</span>',
+        'tour_vehicle_note' => 'Price for 1 full vehicle — driver + passenger included',
+        'tour_coming_soon' => 'Booking coming soon',
+        'book_btn' => 'Book now',
     ],
     'it' => [
         'nav_tours' => 'I nostri tour',
@@ -99,8 +123,8 @@ $t = [
         'nav_contact' => 'Contatto',
         'nav_book' => 'Prenota',
         'hero_badge' => 'L\'ESPERIENZA NOMADRIVE',
-        'hero_title' => 'Vivi la Costa Azzurra da insider',
-        'hero_desc' => 'Nel nostro spazio affacciato sul mare, nel quartiere del Porto di Nizza, tutto comincia con un caffè. La tua guida ti consegna poi le chiavi di un <strong>Ami Buggy o Topolino Dolcevita</strong> — aperti sulla Riviera, 100&nbsp;% elettrici, con tablet e audio a bordo — per svelarti panorami riservati, aneddoti e indirizzi segreti. Attenzioni pensate nei minimi dettagli, ritmo tutto tuo. Non un tour: un\'esperienza.',
+        'hero_title' => 'Scopri la Costa Azzurra in totale libertà',
+        'hero_desc' => 'La tua avventura comincia qui — tour guidati in veicoli 100% elettrici. <br /><strong>❤️ Scegli il tuo tour ❤️</strong>',
         'trust_elec' => '100% elettrico',
         'trust_guide' => 'Segui la nostra guida!',
         'trust_permit' => 'Patente richiesta',
@@ -136,6 +160,18 @@ $t = [
         'footer_copyright' => '© 2026 NOMADRIVE — Tour guidati in auto elettrica a Nizza. Tutti i diritti riservati.',
         'footer_privacy' => 'Privacy',
         'footer_legal' => 'Note legali',
+        'tours_desc_title' => 'DESCRIZIONE DEI TOUR',
+        'tours_details_label' => '✨ L\'ESPERIENZA NOMADRIVE',
+        'tours_details_body' => 'Tutto comincia nel nostro locale affacciato sul mare, al Porto di Nizza, davanti a un caffè di benvenuto. Vi consegniamo poi le chiavi di un <strong>Ami Buggy o Topolino Dolcevita</strong> — 100% elettrici, aperti sul paesaggio, con tablet e sistema audio a bordo.<br><br>Una guida dedicata vi accompagna per svelare panorami riservati, aneddoti e tesori nascosti della Riviera. Ogni tour è scandito da piccole attenzioni pensate per voi.<br><br>Nessun gruppo impersonale, nessuna corsa — si guida al proprio ritmo, con stile.',
+        'tour1_title' => '🏙️ CITY — 20 km · 2h',
+        'tour1_body' => 'Dalla Promenade des Anglais al Castello di Nizza: il Negresco, la Cattedrale Ortodossa Russa, le Arene romane di Cimiez, il Boulevard Maeterlinck sospeso tra scogliere e mare. Un panorama eccezionale sulla Baia degli Angeli.<br><span class="tour-tags">Guida dedicata · Snack incluso</span>',
+        'tour2_title' => '🌊 FRENCH RIVIERA — 35 km · 2h30',
+        'tour2_body' => 'Nizza, La Réserve, Villefranche-sur-Mer con la sua baia leggendaria, Saint-Jean-Cap-Ferrat con le sue ville Belle Époque, fino a Beaulieu-sur-Mer. Una pausa balneare e uno snack fronte mare inclusi. Ricordatevi il costume.<br><span class="tour-tags">Guida dedicata · Sorpresa · Snack incluso</span>',
+        'tour3_title' => '🌅 SUNSET — 35 km · 2h30',
+        'tour3_body' => 'La Promenade, Villefranche nella luce della sera, poi il Castello di Nizza poco prima del tramonto. Un aperitivo affacciato sulla Baia degli Angeli vi aspetta al belvedere — bibite fresche e tagliere. Orario adattato alla stagione.<br><span class="tour-tags">Guida dedicata · Aperitivo al tramonto</span>',
+        'tour_vehicle_note' => 'Prezzo per 1 veicolo completo — conducente + passeggero inclusi',
+        'tour_coming_soon' => 'Prenotazione disponibile a breve',
+        'book_btn' => 'Prenota ora',
     ],
 ][$lang];
 
@@ -274,6 +310,39 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
     exit;
 }
 ?>
+<?php
+$seo = [
+    'fr' => [
+        'title' => 'Tours Guidés en Voiture Électrique à Nice | NOMADRIVE',
+        'description' => 'Découvrez la Côte d\'Azur en voiture électrique ouverte — 3 tours guidés au départ de Nice : CITY (2h), FRENCH RIVIERA (2h30) et SUNSET avec apéritif au belvédère. Guide dédié, collations incluses. Permis B requis.',
+        'keywords' => 'tours guidés nice, visite nice voiture électrique, guide nice, excursion côte d\'azur, ami buggy nice, topolino dolcevita nice, tour accompagné nice, riviera française, coucher de soleil nice',
+        'og_title' => 'Tours Guidés en Voiture Électrique à Nice | NOMADRIVE',
+        'og_desc' => '3 circuits guidés depuis Nice en Ami Buggy ou Topolino Dolcevita — CITY, FRENCH RIVIERA & SUNSET. Guide local, tablette embarquée, collations incluses. Permis B requis.',
+        'og_locale' => 'fr_FR',
+        'og_img_alt' => 'Vue panoramique sur la Côte d\'Azur depuis Nice avec NOMADRIVE',
+    ],
+    'en' => [
+        'title' => 'Guided Electric Car Tours in Nice, French Riviera | NOMADRIVE',
+        'description' => 'Discover the French Riviera in an open-air electric vehicle — 3 guided tours from Nice: CITY (2h), FRENCH RIVIERA (2h30) and SUNSET with rooftop aperitif. Dedicated guide, snacks included. Driving licence required.',
+        'keywords' => 'guided tours nice, electric car tour nice, french riviera tour, nice sightseeing, ami buggy nice, topolino dolcevita nice, cote d\'azur tour, sunset tour nice',
+        'og_title' => 'Guided Electric Car Tours in Nice | NOMADRIVE',
+        'og_desc' => '3 guided routes from Nice in an open-air electric vehicle — CITY, FRENCH RIVIERA & SUNSET. Local guide, on-board tablet, snacks included. Driving licence required.',
+        'og_locale' => 'en_US',
+        'og_img_alt' => 'Panoramic view of the French Riviera from Nice with NOMADRIVE',
+    ],
+    'it' => [
+        'title' => 'Tour Guidati in Auto Elettrica a Nizza | NOMADRIVE',
+        'description' => 'Scopri la Costa Azzurra in auto elettrica aperta — 3 tour guidati da Nizza: CITY (2h), FRENCH RIVIERA (2h30) e SUNSET con aperitivo al belvedere. Guida dedicata, snack inclusi. Patente B richiesta.',
+        'keywords' => 'tour guidati nizza, visita nizza auto elettrica, costa azzurra tour, ami buggy nizza, topolino dolcevita nizza, gita costa azzurra, tramonto nizza',
+        'og_title' => 'Tour Guidati in Auto Elettrica a Nizza | NOMADRIVE',
+        'og_desc' => '3 percorsi guidati da Nizza in auto elettrica aperta — CITY, FRENCH RIVIERA & SUNSET. Guida locale, tablet a bordo, snack inclusi. Patente B richiesta.',
+        'og_locale' => 'it_IT',
+        'og_img_alt' => 'Vista panoramica sulla Costa Azzurra da Nizza con NOMADRIVE',
+    ],
+];
+$sm = $seo[$lang];
+$canonical = $lang === 'fr' ? 'https://nomadrive.fr/' : 'https://nomadrive.fr/?lang=' . $lang;
+?>
 <!DOCTYPE html>
 <html lang="<?= $lang ?>">
 
@@ -281,14 +350,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
 
+    <!-- Favicon & App Icons -->
+    <link rel="icon" type="image/jpeg" href="/images/logo_nomadrive.jpg">
+    <link rel="apple-touch-icon" href="/images/logo_nomadrive.jpg">
+    <meta name="theme-color" content="#1a1a2e">
+
     <!-- SEO Primary Meta -->
-    <title>Tours Guidés en Voiture Électrique à Nice | NOMADRIVE</title>
-    <meta name="description"
-        content="Découvrez Nice avec nos tours guidés en voiture électrique : Citroën Ami et Fiat Topolino. Permis B requis, suivez notre guide local sur la Côte d'Azur. Réservez en ligne.">
-    <meta name="keywords"
-        content="tours guidés nice, visite nice voiture électrique, guide nice, louer ami citroën nice, topolino location nice, excursion voiture électrique nice, tour accompagné nice">
+    <title><?= htmlspecialchars($sm['title']) ?></title>
+    <meta name="description" content="<?= htmlspecialchars($sm['description']) ?>">
+    <meta name="keywords" content="<?= htmlspecialchars($sm['keywords']) ?>">
     <meta name="robots" content="index, follow">
-    <link rel="canonical" href="https://nomadrive.fr/">
+    <link rel="canonical" href="<?= $canonical ?>">
 
     <!-- Geo Targeting -->
     <meta name="geo.region" content="FR-06">
@@ -302,24 +374,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
     <link rel="alternate" hreflang="it" href="https://nomadrive.fr/?lang=it">
     <link rel="alternate" hreflang="x-default" href="https://nomadrive.fr/">
 
-    <!-- Open Graph -->
+    <!-- Open Graph (WhatsApp, iMessage, Messenger…) -->
     <meta property="og:type" content="website">
-    <meta property="og:locale" content="fr_FR">
+    <meta property="og:locale" content="<?= $sm['og_locale'] ?>">
     <meta property="og:site_name" content="NOMADRIVE">
-    <meta property="og:title" content="Tours Guidés en Voiture Électrique à Nice | NOMADRIVE">
-    <meta property="og:description"
-        content="Montez à bord et suivez notre guide ! Tours accompagnés en Citroën Ami & Fiat Topolino (Permis B requis). Réservez en ligne.">
-    <meta property="og:url" content="https://nomadrive.fr/">
-    <meta property="og:image" content="https://nomadrive.fr/images/hero-ami.png">
+    <meta property="og:title" content="<?= htmlspecialchars($sm['og_title']) ?>">
+    <meta property="og:description" content="<?= htmlspecialchars($sm['og_desc']) ?>">
+    <meta property="og:url" content="<?= $canonical ?>">
+    <meta property="og:image" content="https://nomadrive.fr/images/nice-panorama.png">
     <meta property="og:image:width" content="1200">
     <meta property="og:image:height" content="630">
+    <meta property="og:image:alt" content="<?= htmlspecialchars($sm['og_img_alt']) ?>">
 
-    <!-- Twitter Card -->
+    <!-- Twitter / X Card -->
     <meta name="twitter:card" content="summary_large_image">
-    <meta name="twitter:title" content="Tours Guidés en Voiture Électrique à Nice | NOMADRIVE">
-    <meta name="twitter:description"
-        content="Visitez Nice avec notre guide ! Suivez-le au volant d'une Citroën Ami ou Fiat Topolino 100% électrique.">
-    <meta name="twitter:image" content="https://nomadrive.fr/images/hero-ami.png">
+    <meta name="twitter:title" content="<?= htmlspecialchars($sm['og_title']) ?>">
+    <meta name="twitter:description" content="<?= htmlspecialchars($sm['og_desc']) ?>">
+    <meta name="twitter:image" content="https://nomadrive.fr/images/nice-panorama.png">
+    <meta name="twitter:image:alt" content="<?= htmlspecialchars($sm['og_img_alt']) ?>">
 
     <!-- Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -337,16 +409,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
     <!-- Google Tag Manager — chargé uniquement après consentement cookies -->
     <script>var GTM_ID = 'GTM-5NH9D8CC';</script>
 
-    <!-- JSON-LD Structured Data: LocalBusiness -->
+    <!-- JSON-LD: LocalBusiness -->
     <script type="application/ld+json">
     {
         "@context": "https://schema.org",
         "@type": "LocalBusiness",
         "name": "NOMADRIVE",
-        "description": "Tours guidés en voitures électriques à Nice. Citroën Ami et Fiat Topolino pour des découvertes avec guide local sur la Côte d'Azur.",
+        "description": "Tours guidés en voiture électrique ouverte à Nice et sur la Côte d'Azur. 3 circuits : CITY, FRENCH RIVIERA et SUNSET. Guide dédié, tablette embarquée, collations incluses.",
         "url": "https://nomadrive.fr",
         "telephone": "+336-33-33-87-92",
         "email": "contact@nomadrive.fr",
+        "image": "https://nomadrive.fr/images/nice-panorama.png",
         "address": {
             "@type": "PostalAddress",
             "streetAddress": "2 place Guynemer",
@@ -360,38 +433,111 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
             "latitude": 43.7102,
             "longitude": 7.2620
         },
-        "openingHours": "Mo-Su 09:00-00:00",
-        "priceRange": "€€"
-    }
-    </script>
-
-    <!-- JSON-LD: Product (Ami) -->
-    <script type="application/ld+json">
-    {
-        "@context": "https://schema.org",
-        "@type": "Product",
-        "name": "Tour Guidé Citroën Ami Électrique - Nice",
-        "description": "Participez à un tour guidé avec guide local au volant d'une Citroën Ami 100% électrique à Nice. 2 places, idéale pour découvrir la Côte d'Azur.",
-        "image": "https://nomadrive.fr/images/hero-ami.png",
-        "brand": {
-            "@type": "Brand",
-            "name": "Citroën"
+        "openingHours": "Mo-Su 09:00-19:00",
+        "priceRange": "€€",
+        "currenciesAccepted": "EUR",
+        "paymentAccepted": "Credit Card, Online",
+        "areaServed": {
+            "@type": "GeoCircle",
+            "geoMidpoint": { "@type": "GeoCoordinates", "latitude": 43.7102, "longitude": 7.2620 },
+            "geoRadius": "40000"
         }
     }
     </script>
 
-    <!-- JSON-LD: Product (Topolino) -->
+    <!-- JSON-LD: Tours (TouristTrip) -->
     <script type="application/ld+json">
     {
         "@context": "https://schema.org",
-        "@type": "Product",
-        "name": "Tour Guidé Fiat Topolino Électrique - Nice",
-        "description": "Tour accompagné avec guide au volant d'un Fiat Topolino 100% électrique à Nice. 2 places, parfait pour explorer la Riviera.",
-        "image": "https://nomadrive.fr/images/topolino-nice.png",
-        "brand": {
-            "@type": "Brand",
-            "name": "Fiat"
-        }
+        "@type": "ItemList",
+        "name": "Tours guidés NOMADRIVE",
+        "itemListElement": [
+            {
+                "@type": "ListItem",
+                "position": 1,
+                "item": {
+                    "@type": "TouristTrip",
+                    "name": "NOMADRIVE CITY — Tour guidé Nice 2h",
+                    "description": "De la Promenade des Anglais au Château de Nice : le Negresco, la Cathédrale Orthodoxe Russe, les Arènes de Cimiez, le Boulevard Maeterlinck. Panorama exceptionnel sur la Baie des Anges.",
+                    "image": "https://nomadrive.fr/images/tour1.jpg",
+                    "url": "https://nomadrive.fr/",
+                    "touristType": "Sightseeing",
+                    "offers": {
+                        "@type": "Offer",
+                        "price": "150",
+                        "priceCurrency": "EUR",
+                        "availability": "https://schema.org/InStock"
+                    },
+                    "itinerary": {
+                        "@type": "ItemList",
+                        "name": "Étapes du tour CITY",
+                        "itemListElement": [
+                            { "@type": "ListItem", "position": 1, "name": "Promenade des Anglais" },
+                            { "@type": "ListItem", "position": 2, "name": "Negresco" },
+                            { "@type": "ListItem", "position": 3, "name": "Cathédrale Orthodoxe Russe" },
+                            { "@type": "ListItem", "position": 4, "name": "Arènes de Cimiez" },
+                            { "@type": "ListItem", "position": 5, "name": "Château de Nice — Baie des Anges" }
+                        ]
+                    }
+                }
+            },
+            {
+                "@type": "ListItem",
+                "position": 2,
+                "item": {
+                    "@type": "TouristTrip",
+                    "name": "NOMADRIVE FRENCH RIVIERA — Tour guidé 2h30",
+                    "description": "Nice, Villefranche-sur-Mer, Saint-Jean-Cap-Ferrat et Beaulieu-sur-Mer. Pause baignade et collation face à la mer incluses.",
+                    "image": "https://nomadrive.fr/images/tour2.jpg",
+                    "url": "https://nomadrive.fr/",
+                    "touristType": "Sightseeing",
+                    "offers": {
+                        "@type": "Offer",
+                        "price": "200",
+                        "priceCurrency": "EUR",
+                        "availability": "https://schema.org/InStock"
+                    },
+                    "itinerary": {
+                        "@type": "ItemList",
+                        "name": "Étapes du tour FRENCH RIVIERA",
+                        "itemListElement": [
+                            { "@type": "ListItem", "position": 1, "name": "Nice — Port" },
+                            { "@type": "ListItem", "position": 2, "name": "Villefranche-sur-Mer" },
+                            { "@type": "ListItem", "position": 3, "name": "Saint-Jean-Cap-Ferrat" },
+                            { "@type": "ListItem", "position": 4, "name": "Beaulieu-sur-Mer" }
+                        ]
+                    }
+                }
+            },
+            {
+                "@type": "ListItem",
+                "position": 3,
+                "item": {
+                    "@type": "TouristTrip",
+                    "name": "NOMADRIVE SUNSET — Tour guidé coucher de soleil 2h",
+                    "description": "La Promenade, Villefranche sous la lumière du soir, puis le Château de Nice au coucher de soleil. Apéritif face à la Baie des Anges au belvédère.",
+                    "image": "https://nomadrive.fr/images/tour3.jpg",
+                    "url": "https://nomadrive.fr/",
+                    "touristType": "Sightseeing",
+                    "offers": {
+                        "@type": "Offer",
+                        "price": "200",
+                        "priceCurrency": "EUR",
+                        "availability": "https://schema.org/InStock"
+                    },
+                    "itinerary": {
+                        "@type": "ItemList",
+                        "name": "Étapes du tour SUNSET",
+                        "itemListElement": [
+                            { "@type": "ListItem", "position": 1, "name": "Promenade des Anglais" },
+                            { "@type": "ListItem", "position": 2, "name": "Villefranche-sur-Mer au crépuscule" },
+                            { "@type": "ListItem", "position": 3, "name": "Château de Nice — coucher de soleil" },
+                            { "@type": "ListItem", "position": 4, "name": "Belvédère — apéritif Baie des Anges" }
+                        ]
+                    }
+                }
+            }
+        ]
     }
     </script>
 
@@ -516,10 +662,85 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                 <h1 class="product-title"><?= $t['hero_title'] ?></h1>
                 <p class="hero-description"><?= $t['hero_desc'] ?></p>
 
-                <div class="bokunWidget"
-                    data-src="https://widgets.bokun.io/online-sales/9a25aafd-ff84-47d1-824a-49fa6a64a423/product-list/107372">
+                <div class="tour-booking-grid">
+
+                    <!-- TOUR 1 — CITY -->
+                    <div class="tour-booking-card">
+                        <div class="tour-booking-img-wrap">
+                            <img src="/images/tour1.jpg" alt="Tour City Nice" class="tour-booking-img">
+                            <span class="tour-booking-badge tour-badge-city">🏙️ CITY</span>
+                        </div>
+                        <div class="tour-booking-info">
+                            <p class="tour-booking-route">Promenade des Anglais, Vieux-Nice &amp; le Port</p>
+                            <div class="tour-booking-meta">
+                                <span class="tour-meta-duration"><i class="fa-regular fa-clock"></i> 2h</span>
+                                <span class="tour-meta-price">150 €</span>
+                            </div>
+                            <p class="tour-booking-vehicle"><?= $t['tour_vehicle_note'] ?></p>
+                            <button class="tour-book-btn" onclick="toggleBooking(this)">
+                                <?= $t['book_btn'] ?> <span class="tour-book-arrow">↓</span>
+                            </button>
+                        </div>
+                        <div class="tour-booking-widget" style="display:none">
+                            <div class="bokunWidget"
+                                data-src="https://widgets.bokun.io/online-sales/9a25aafd-ff84-47d1-824a-49fa6a64a423/experience-calendar/1194328">
+                            </div>
+                            <noscript>Please enable javascript in your browser to book</noscript>
+                        </div>
+                    </div>
+
+                    <!-- TOUR 2 — FRENCH RIVIERA -->
+                    <div class="tour-booking-card">
+                        <div class="tour-booking-img-wrap">
+                            <img src="/images/tour2.jpg" alt="Tour French Riviera" class="tour-booking-img">
+                            <span class="tour-booking-badge tour-badge-riviera">🌊 FRENCH RIVIERA</span>
+                        </div>
+                        <div class="tour-booking-info">
+                            <p class="tour-booking-route">Villefranche-sur-Mer, Saint-Jean-Cap-Ferrat, Beaulieu-sur-Mer
+                            </p>
+                            <div class="tour-booking-meta">
+                                <span class="tour-meta-duration"><i class="fa-regular fa-clock"></i> 2h30</span>
+                                <span class="tour-meta-price">180 €</span>
+                            </div>
+                            <p class="tour-booking-vehicle"><?= $t['tour_vehicle_note'] ?></p>
+                            <button class="tour-book-btn" onclick="toggleBooking(this)">
+                                <?= $t['book_btn'] ?> <span class="tour-book-arrow">↓</span>
+                            </button>
+                        </div>
+                        <div class="tour-booking-widget" style="display:none">
+                            <div class="bokunWidget"
+                                data-src="https://widgets.bokun.io/online-sales/9a25aafd-ff84-47d1-824a-49fa6a64a423/experience-calendar/1197812">
+                            </div>
+                            <noscript>Please enable javascript in your browser to book</noscript>
+                        </div>
+                    </div>
+
+                    <!-- TOUR 3 — SUNSET -->
+                    <div class="tour-booking-card">
+                        <div class="tour-booking-img-wrap">
+                            <img src="/images/tour3.jpg" alt="Tour Sunset Nice" class="tour-booking-img">
+                            <span class="tour-booking-badge tour-badge-sunset">🌅 SUNSET</span>
+                        </div>
+                        <div class="tour-booking-info">
+                            <p class="tour-booking-route">Le parcours coucher de soleil sur la Riviera</p>
+                            <div class="tour-booking-meta">
+                                <span class="tour-meta-duration"><i class="fa-regular fa-clock"></i> 2h30</span>
+                                <span class="tour-meta-price">200 €</span>
+                            </div>
+                            <p class="tour-booking-vehicle"><?= $t['tour_vehicle_note'] ?></p>
+                            <button class="tour-book-btn" onclick="toggleBooking(this)">
+                                <?= $t['book_btn'] ?> <span class="tour-book-arrow">↓</span>
+                            </button>
+                        </div>
+                        <div class="tour-booking-widget" style="display:none">
+                            <div class="bokunWidget"
+                                data-src="https://widgets.bokun.io/online-sales/9a25aafd-ff84-47d1-824a-49fa6a64a423/experience-calendar/1197894">
+                            </div>
+                            <noscript>Please enable javascript in your browser to book</noscript>
+                        </div>
+                    </div>
+
                 </div>
-                <noscript>Please enable javascript in your browser to book</noscript>
 
                 <div class="trust-badges-hero">
                     <span><i class="fa-duotone fa-solid fa-bolt trust-icon"></i><?= $t['trust_elec'] ?></span>
@@ -527,6 +748,35 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                     <span><i class="fa-duotone fa-solid fa-id-card trust-icon"></i><?= $t['trust_permit'] ?></span>
                     <span><i class="fa-duotone fa-solid fa-rotate-left trust-icon"></i><?= $t['trust_cancel'] ?></span>
                 </div>
+
+                <div class="tours-details-accordion">
+                    <p class="tours-details-label"><?= $t['tours_details_label'] ?></p>
+                    <p class="tours-details-body"><?= $t['tours_details_body'] ?></p>
+                    <div class="tours-desc-encart">
+                        <h3 class="tours-desc-encart-title"><?= $t['tours_desc_title'] ?></h3>
+                        <?php
+                        $tours_acc = [
+                            ['title' => $t['tour1_title'], 'body' => $t['tour1_body']],
+                            ['title' => $t['tour2_title'], 'body' => $t['tour2_body']],
+                            ['title' => $t['tour3_title'], 'body' => $t['tour3_body']],
+                        ];
+                        foreach ($tours_acc as $tour): ?>
+                            <div class="faq-item">
+                                <button class="faq-toggle" onclick="toggleFaq(this)" aria-expanded="false">
+                                    <span><?= $tour['title'] ?></span>
+                                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                        stroke-width="2">
+                                        <path d="m6 9 6 6 6-6" />
+                                    </svg>
+                                </button>
+                                <div class="faq-answer">
+                                    <p><?= $tour['body'] ?></p>
+                                </div>
+                            </div>
+                        <?php endforeach; ?>
+                    </div>
+                </div>
+
             </div>
         </section>
 
@@ -681,6 +931,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
             const isOpen = item.classList.contains('open');
             item.classList.toggle('open');
             btn.setAttribute('aria-expanded', !isOpen);
+        }
+
+        // Tour booking toggle
+        function toggleBooking(btn) {
+            const card = btn.closest('.tour-booking-card');
+            const widget = card.querySelector('.tour-booking-widget');
+            const arrow = btn.querySelector('.tour-book-arrow');
+            const isOpen = widget.style.display !== 'none';
+
+            widget.style.display = isOpen ? 'none' : 'block';
+            arrow.textContent = isOpen ? '↓' : '↑';
+
+            if (!isOpen) {
+                setTimeout(() => widget.scrollIntoView({ behavior: 'smooth', block: 'nearest' }), 80);
+            }
         }
 
         // Hamburger mobile menu
