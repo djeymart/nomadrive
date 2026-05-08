@@ -15,7 +15,7 @@ $t = [
         'questions' => [
             [
                 'q' => 'Faut-il un permis de conduire pour participer à un tour ?',
-                'a' => 'Oui, un <strong>permis de conduire valide</strong> (permis B ou équivalent) est obligatoire pour conduire nos véhicules lors du tour guidé. Le conducteur doit être en mesure de présenter son permis au départ du tour.',
+                'a' => 'Oui, un <strong>permis de conduire valide</strong> (permis B ou équivalent) est obligatoire pour conduire nos véhicules lors du tour guidé. Le conducteur doit présenter son permis <strong>en version physique</strong> au départ du tour. <strong>Les permis virtuels ou présentés depuis un téléphone ne sont pas acceptés.</strong>',
             ],
             [
                 'q' => 'Puis-je garder le véhicule après le tour ?',
@@ -59,7 +59,7 @@ $t = [
         'questions' => [
             [
                 'q' => 'Is a driving licence required to join a tour?',
-                'a' => 'Yes, a <strong>valid driving licence</strong> (category B or equivalent) is required to drive our vehicles during the guided tour. The driver must be able to present their licence at the start of the tour.',
+                'a' => 'Yes, a <strong>valid driving licence</strong> (category B or equivalent) is required to drive our vehicles during the guided tour. The driver must present their licence <strong>in physical form</strong> at the start of the tour. <strong>Digital licences or licences shown on a phone are not accepted.</strong>',
             ],
             [
                 'q' => 'Can I keep the vehicle after the tour?',
@@ -103,7 +103,7 @@ $t = [
         'questions' => [
             [
                 'q' => 'È necessaria la patente per partecipare a un tour?',
-                'a' => 'Sì, una <strong>patente di guida valida</strong> (categoria B o equivalente) è obbligatoria per guidare i nostri veicoli durante il tour. Il conducente deve presentare la patente all\'inizio del tour.',
+                'a' => 'Sì, una <strong>patente di guida valida</strong> (categoria B o equivalente) è obbligatoria per guidare i nostri veicoli durante il tour. Il conducente deve presentare la patente <strong>in formato fisico</strong> all\'inizio del tour. <strong>Le patenti digitali o mostrate dal telefono non sono accettate.</strong>',
             ],
             [
                 'q' => 'Posso tenere il veicolo dopo il tour?',

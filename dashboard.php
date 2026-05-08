@@ -1492,8 +1492,7 @@ if ($view === 'dashboard') {
     // ── Submit état des lieux ─────────────────────────────────────────────────────
     async function submitEtat(type, dossierId) {
       const btn = document.getElementById('btn-submit-' + type);
-      const km = document.getElementById('km-' + type)?.value;
-      if (!km) { showToast('Veuillez saisir le kilométrage.'); return; }
+      const km = document.getElementById('km-' + type)?.value || '0';
 
       const fd = new FormData();
       fd.append('action', 'save_etat_' + type);

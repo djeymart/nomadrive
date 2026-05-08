@@ -20,7 +20,7 @@ $t = [
         'faq_label' => 'QUESTIONS FRÉQUENTES',
         'faq_title' => 'Tout savoir sur nos tours guidés à Nice',
         'faq_q1' => 'Faut-il un permis de conduire pour participer à un tour ?',
-        'faq_a1' => 'Oui, un <strong>permis de conduire valide</strong> (permis B ou équivalent) est obligatoire pour conduire nos véhicules lors du tour guidé. Le conducteur doit être en mesure de présenter son permis au départ du tour.',
+        'faq_a1' => 'Oui, un <strong>permis de conduire valide</strong> (permis B ou équivalent) est obligatoire pour conduire nos véhicules lors du tour guidé. Le conducteur doit présenter son permis <strong>en version physique</strong> au départ du tour. <strong>Les permis virtuels ou présentés depuis un téléphone ne sont pas acceptés.</strong>',
         'faq_q2' => 'Puis-je garder le véhicule après le tour ?',
         'faq_a2' => 'Non, le véhicule est <strong>mis à disposition uniquement pendant la durée du tour guidé</strong>. Au retour, le véhicule est restitué au point de départ. Il ne s\'agit pas d\'une location libre.',
         'faq_q3' => 'Un enfant peut-il participer au tour ?',
@@ -28,7 +28,7 @@ $t = [
         'faq_q4' => 'Où a lieu le départ du tour ?',
         'faq_a4' => 'Le point de départ et de retour se situe au <strong>2 place Guynemer, 06300 Nice</strong>. Les instructions d\'accès vous seront communiquées par email après votre réservation.',
         'faq_q5' => 'Comment se déroule le tour guidé ?',
-        'faq_a5' => 'À votre arrivée, un <strong>briefing rapide</strong> vous est donné. Vous prenez ensuite le volant de votre véhicule électrique et suivez l\'<strong>itinéraire guidé par GPS</strong> (tablette embarquée). Le parcours vous guide à travers les plus beaux quartiers de Nice avec des arrêts photo aux points d\'intérêt.',
+        'faq_a5' => '<strong>Merci d\'arriver 30 minutes avant l\'heure de départ</strong> pour signer le contrat et réaliser l\'état des lieux du véhicule. Un <strong>briefing rapide</strong> vous est ensuite donné. Vous prenez le volant de votre véhicule électrique et suivez l\'<strong>itinéraire guidé par GPS</strong> (tablette embarquée). Le parcours vous guide à travers les plus beaux quartiers de Nice avec des arrêts photo aux points d\'intérêt.',
         'contact_label' => 'CONTACT',
         'contact_form_h3' => 'Envoyez-nous un message',
         'contact_send' => 'Envoyer le message',
@@ -44,7 +44,7 @@ $t = [
         'footer_tours' => 'Nos tours',
         'footer_info' => 'Infos',
         'footer_contact' => 'Contact',
-        'footer_hours' => 'Lun–Dim · 9h–19h',
+        'footer_hours' => 'Lun–Dim · 9h–22h',
         'footer_copyright' => '© 2026 NOMADRIVE — Tours guidés en voiture électrique à Nice. Tous droits réservés.',
         'footer_privacy' => 'Confidentialité',
         'footer_legal' => 'Mentions légales',
@@ -57,7 +57,7 @@ $t = [
         'tour2_body' => 'Nice, La Réserve, Villefranche-sur-Mer et sa rade légendaire, Saint-Jean-Cap-Ferrat et ses villas Belle Époque, jusqu\'à Beaulieu-sur-Mer surnommée la « Petite Afrique ». Une pause baignade et collation face à la mer incluses. Pensez à votre maillot.<br><span class="tour-tags">Guide dédié · Surprise · Collation incluse</span>',
         'tour3_title' => '🌅 SUNSET — 35 km · 2h30',
         'tour3_body' => 'La Promenade, Villefranche sous la lumière du soir, puis le Château de Nice juste avant le coucher de soleil. Un apéritif face à la Baie des Anges vous attend au belvédère — boissons fraîches et planche gourmande. Heure de départ ajustée selon la saison.<br><span class="tour-tags">Guide dédié · Apéritif au coucher de soleil</span>',
-        'tour_vehicle_note' => 'Prix pour 1 véhicule complet — conducteur + passager inclus',
+        'tour_vehicle_note' => 'Par personne',
         'tour_coming_soon' => 'Réservation bientôt disponible',
         'book_btn' => 'Réserver',
     ],
@@ -76,7 +76,7 @@ $t = [
         'faq_label' => 'FREQUENTLY ASKED QUESTIONS',
         'faq_title' => 'Everything about our guided tours in Nice',
         'faq_q1' => 'Is a driving licence required to join a tour?',
-        'faq_a1' => 'Yes, a <strong>valid driving licence</strong> (category B or equivalent) is required to drive our vehicles during the guided tour. The driver must be able to present their licence at the start of the tour.',
+        'faq_a1' => 'Yes, a <strong>valid driving licence</strong> (category B or equivalent) is required to drive our vehicles during the guided tour. The driver must present their licence <strong>in physical form</strong> at the start of the tour. <strong>Digital licences or licences shown on a phone are not accepted.</strong>',
         'faq_q2' => 'Can I keep the vehicle after the tour?',
         'faq_a2' => 'No, the vehicle is <strong>available only for the duration of the guided tour</strong>. It is returned to the departure point at the end. This is not a free-roaming rental.',
         'faq_q3' => 'Can a child join the tour?',
@@ -84,7 +84,7 @@ $t = [
         'faq_q4' => 'Where does the tour depart from?',
         'faq_a4' => 'The departure and return point is at <strong>2 place Guynemer, 06300 Nice</strong>. Access instructions will be sent to you by email after booking.',
         'faq_q5' => 'How does the guided tour work?',
-        'faq_a5' => 'On arrival, you\'ll receive a <strong>quick briefing</strong>. You then take the wheel of your electric vehicle and follow the <strong>GPS-guided route</strong> (on-board tablet). The route takes you through Nice\'s most beautiful neighbourhoods with photo stops at points of interest.',
+        'faq_a5' => '<strong>Please arrive 30 minutes before your departure time</strong> to sign the contract and complete the vehicle inspection. You\'ll then receive a <strong>quick briefing</strong>. You take the wheel of your electric vehicle and follow the <strong>GPS-guided route</strong> (on-board tablet). The route takes you through Nice\'s most beautiful neighbourhoods with photo stops at points of interest.',
         'contact_label' => 'CONTACT',
         'contact_form_h3' => 'Send us a message',
         'contact_send' => 'Send message',
@@ -100,7 +100,7 @@ $t = [
         'footer_tours' => 'Our tours',
         'footer_info' => 'Info',
         'footer_contact' => 'Contact',
-        'footer_hours' => 'Mon–Sun · 9am–7pm',
+        'footer_hours' => 'Mon–Sun · 9am–10pm',
         'footer_copyright' => '© 2026 NOMADRIVE — Guided electric car tours in Nice. All rights reserved.',
         'footer_privacy' => 'Privacy',
         'footer_legal' => 'Legal notice',
@@ -113,7 +113,7 @@ $t = [
         'tour2_body' => 'Nice, La Réserve, Villefranche-sur-Mer and its legendary bay, Saint-Jean-Cap-Ferrat with its Belle Époque villas, up to Beaulieu-sur-Mer known as the « Petite Afrique ». A swim break and seaside snack included. Don\'t forget your swimsuit.<br><span class="tour-tags">Dedicated guide · Surprise · Snack included</span>',
         'tour3_title' => '🌅 SUNSET — 35 km · 2h30',
         'tour3_body' => 'The Promenade, Villefranche in the evening light, then the Château de Nice just before sunset. An aperitif overlooking the Baie des Anges awaits — cold drinks and a charcuterie board. Departure time adjusted to capture the exact sunset.<br><span class="tour-tags">Dedicated guide · Sunset aperitif</span>',
-        'tour_vehicle_note' => 'Price for 1 full vehicle — driver + passenger included',
+        'tour_vehicle_note' => 'Per person',
         'tour_coming_soon' => 'Booking coming soon',
         'book_btn' => 'Book now',
     ],
@@ -132,7 +132,7 @@ $t = [
         'faq_label' => 'DOMANDE FREQUENTI',
         'faq_title' => 'Tutto sui nostri tour guidati a Nizza',
         'faq_q1' => 'È necessaria la patente per partecipare a un tour?',
-        'faq_a1' => 'Sì, una <strong>patente di guida valida</strong> (categoria B o equivalente) è obbligatoria per guidare i nostri veicoli durante il tour. Il conducente deve presentare la patente all\'inizio del tour.',
+        'faq_a1' => 'Sì, una <strong>patente di guida valida</strong> (categoria B o equivalente) è obbligatoria per guidare i nostri veicoli durante il tour. Il conducente deve presentare la patente <strong>in formato fisico</strong> all\'inizio del tour. <strong>Le patenti digitali o mostrate dal telefono non sono accettate.</strong>',
         'faq_q2' => 'Posso tenere il veicolo dopo il tour?',
         'faq_a2' => 'No, il veicolo è <strong>disponibile solo per la durata del tour guidato</strong>. Al ritorno, il veicolo viene restituito al punto di partenza. Non si tratta di un noleggio libero.',
         'faq_q3' => 'Un bambino può partecipare al tour?',
@@ -140,7 +140,7 @@ $t = [
         'faq_q4' => 'Da dove parte il tour?',
         'faq_a4' => 'Il punto di partenza e di ritorno è al <strong>2 place Guynemer, 06300 Nizza</strong>. Le istruzioni di accesso saranno comunicate per email dopo la prenotazione.',
         'faq_q5' => 'Come si svolge il tour guidato?',
-        'faq_a5' => 'All\'arrivo, riceverete un <strong>rapido briefing</strong>. Poi prendete il volante del vostro veicolo elettrico e seguite il <strong>percorso guidato via GPS</strong> (tablet a bordo). Il percorso vi guida nei quartieri più belli di Nizza con soste fotografiche nei punti d\'interesse.',
+        'faq_a5' => '<strong>Si prega di arrivare 30 minuti prima dell\'orario di partenza</strong> per firmare il contratto e effettuare il controllo del veicolo. Riceverete poi un <strong>rapido briefing</strong>. Prendete il volante del vostro veicolo elettrico e seguite il <strong>percorso guidato via GPS</strong> (tablet a bordo). Il percorso vi guida nei quartieri più belli di Nizza con soste fotografiche nei punti d\'interesse.',
         'contact_label' => 'CONTATTO',
         'contact_form_h3' => 'Inviaci un messaggio',
         'contact_send' => 'Invia messaggio',
@@ -156,7 +156,7 @@ $t = [
         'footer_tours' => 'I nostri tour',
         'footer_info' => 'Info',
         'footer_contact' => 'Contatto',
-        'footer_hours' => 'Lun–Dom · 9–19',
+        'footer_hours' => 'Lun–Dom · 9–22',
         'footer_copyright' => '© 2026 NOMADRIVE — Tour guidati in auto elettrica a Nizza. Tutti i diritti riservati.',
         'footer_privacy' => 'Privacy',
         'footer_legal' => 'Note legali',
@@ -169,7 +169,7 @@ $t = [
         'tour2_body' => 'Nizza, La Réserve, Villefranche-sur-Mer con la sua baia leggendaria, Saint-Jean-Cap-Ferrat con le sue ville Belle Époque, fino a Beaulieu-sur-Mer. Una pausa balneare e uno snack fronte mare inclusi. Ricordatevi il costume.<br><span class="tour-tags">Guida dedicata · Sorpresa · Snack incluso</span>',
         'tour3_title' => '🌅 SUNSET — 35 km · 2h30',
         'tour3_body' => 'La Promenade, Villefranche nella luce della sera, poi il Castello di Nizza poco prima del tramonto. Un aperitivo affacciato sulla Baia degli Angeli vi aspetta al belvedere — bibite fresche e tagliere. Orario adattato alla stagione.<br><span class="tour-tags">Guida dedicata · Aperitivo al tramonto</span>',
-        'tour_vehicle_note' => 'Prezzo per 1 veicolo completo — conducente + passeggero inclusi',
+        'tour_vehicle_note' => 'A persona',
         'tour_coming_soon' => 'Prenotazione disponibile a breve',
         'book_btn' => 'Prenota ora',
     ],
@@ -433,7 +433,7 @@ $canonical = $lang === 'fr' ? 'https://nomadrive.fr/' : 'https://nomadrive.fr/?l
             "latitude": 43.7102,
             "longitude": 7.2620
         },
-        "openingHours": "Mo-Su 09:00-19:00",
+        "openingHours": "Mo-Su 09:00-22:00",
         "priceRange": "€€",
         "currenciesAccepted": "EUR",
         "paymentAccepted": "Credit Card, Online",
@@ -464,7 +464,7 @@ $canonical = $lang === 'fr' ? 'https://nomadrive.fr/' : 'https://nomadrive.fr/?l
                     "touristType": "Sightseeing",
                     "offers": {
                         "@type": "Offer",
-                        "price": "150",
+                        "price": "75",
                         "priceCurrency": "EUR",
                         "availability": "https://schema.org/InStock"
                     },
@@ -493,7 +493,7 @@ $canonical = $lang === 'fr' ? 'https://nomadrive.fr/' : 'https://nomadrive.fr/?l
                     "touristType": "Sightseeing",
                     "offers": {
                         "@type": "Offer",
-                        "price": "200",
+                        "price": "90",
                         "priceCurrency": "EUR",
                         "availability": "https://schema.org/InStock"
                     },
@@ -521,7 +521,7 @@ $canonical = $lang === 'fr' ? 'https://nomadrive.fr/' : 'https://nomadrive.fr/?l
                     "touristType": "Sightseeing",
                     "offers": {
                         "@type": "Offer",
-                        "price": "200",
+                        "price": "100",
                         "priceCurrency": "EUR",
                         "availability": "https://schema.org/InStock"
                     },
@@ -674,7 +674,7 @@ $canonical = $lang === 'fr' ? 'https://nomadrive.fr/' : 'https://nomadrive.fr/?l
                             <p class="tour-booking-route">Promenade des Anglais, Vieux-Nice &amp; le Port</p>
                             <div class="tour-booking-meta">
                                 <span class="tour-meta-duration"><i class="fa-regular fa-clock"></i> 2h</span>
-                                <span class="tour-meta-price">150 €</span>
+                                <span class="tour-meta-price">75 € / pers.</span>
                             </div>
                             <p class="tour-booking-vehicle"><?= $t['tour_vehicle_note'] ?></p>
                             <button class="tour-book-btn" onclick="toggleBooking(this)">
@@ -700,7 +700,7 @@ $canonical = $lang === 'fr' ? 'https://nomadrive.fr/' : 'https://nomadrive.fr/?l
                             </p>
                             <div class="tour-booking-meta">
                                 <span class="tour-meta-duration"><i class="fa-regular fa-clock"></i> 2h30</span>
-                                <span class="tour-meta-price">180 €</span>
+                                <span class="tour-meta-price">90 € / pers.</span>
                             </div>
                             <p class="tour-booking-vehicle"><?= $t['tour_vehicle_note'] ?></p>
                             <button class="tour-book-btn" onclick="toggleBooking(this)">
@@ -725,7 +725,7 @@ $canonical = $lang === 'fr' ? 'https://nomadrive.fr/' : 'https://nomadrive.fr/?l
                             <p class="tour-booking-route">Le parcours coucher de soleil sur la Riviera</p>
                             <div class="tour-booking-meta">
                                 <span class="tour-meta-duration"><i class="fa-regular fa-clock"></i> 2h30</span>
-                                <span class="tour-meta-price">200 €</span>
+                                <span class="tour-meta-price">100 € / pers.</span>
                             </div>
                             <p class="tour-booking-vehicle"><?= $t['tour_vehicle_note'] ?></p>
                             <button class="tour-book-btn" onclick="toggleBooking(this)">
