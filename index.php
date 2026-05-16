@@ -1,5 +1,14 @@
 <?php
 require_once __DIR__ . '/config.php';
+require_once __DIR__ . '/sync_gyg_reviews.php';
+
+// ─── Connexion base de données ────────────────────────────────────────────────
+$madiDir = '/var/www/html/madi.mt';
+if (!is_dir($madiDir)) $madiDir = dirname(__DIR__);
+require_once $madiDir . '/vendor/autoload.php';
+require_once $madiDir . '/php/fonctions.php';
+require_once $madiDir . '/php/config.php';
+$db1->query("SET NAMES 'utf8mb4'");
 
 // ─── Langue ──────────────────────────────────────────────────────────────────
 $lang = in_array($_GET['lang'] ?? '', ['fr', 'en', 'it']) ? $_GET['lang'] : 'fr';
@@ -29,6 +38,8 @@ $t = [
         'faq_a4' => 'Le point de départ et de retour se situe au <strong>2 place Guynemer, 06300 Nice</strong>. Les instructions d\'accès vous seront communiquées par email après votre réservation.',
         'faq_q5' => 'Comment se déroule le tour guidé ?',
         'faq_a5' => '<strong>Merci d\'arriver 30 minutes avant l\'heure de départ</strong> pour signer le contrat et réaliser l\'état des lieux du véhicule. Un <strong>briefing rapide</strong> vous est ensuite donné. Vous prenez le volant de votre véhicule électrique et suivez l\'<strong>itinéraire guidé par GPS</strong> (tablette embarquée). Le parcours vous guide à travers les plus beaux quartiers de Nice avec des arrêts photo aux points d\'intérêt.',
+        'faq_q6' => 'Que faut-il apporter le jour du tour ?',
+        'faq_a6' => 'Vous devez impérativement présenter votre <strong>permis de conduire physique</strong> (pas de version numérique). Une <strong>pré-autorisation bancaire de 500 €</strong> sera effectuée à titre de caution : merci de vous munir d\'une <strong>carte bancaire physique</strong> (les cartes virtuelles ne sont pas acceptées).',
         'contact_label' => 'CONTACT',
         'contact_form_h3' => 'Envoyez-nous un message',
         'contact_send' => 'Envoyer le message',
@@ -85,6 +96,8 @@ $t = [
         'faq_a4' => 'The departure and return point is at <strong>2 place Guynemer, 06300 Nice</strong>. Access instructions will be sent to you by email after booking.',
         'faq_q5' => 'How does the guided tour work?',
         'faq_a5' => '<strong>Please arrive 30 minutes before your departure time</strong> to sign the contract and complete the vehicle inspection. You\'ll then receive a <strong>quick briefing</strong>. You take the wheel of your electric vehicle and follow the <strong>GPS-guided route</strong> (on-board tablet). The route takes you through Nice\'s most beautiful neighbourhoods with photo stops at points of interest.',
+        'faq_q6' => 'What do I need to bring on the day?',
+        'faq_a6' => 'You must present your <strong>physical driving licence</strong> (digital versions are not accepted). A <strong>€500 pre-authorisation</strong> will be placed on your card as a security deposit: please bring a <strong>physical bank card</strong> — virtual cards are not accepted.',
         'contact_label' => 'CONTACT',
         'contact_form_h3' => 'Send us a message',
         'contact_send' => 'Send message',
@@ -141,6 +154,8 @@ $t = [
         'faq_a4' => 'Il punto di partenza e di ritorno è al <strong>2 place Guynemer, 06300 Nizza</strong>. Le istruzioni di accesso saranno comunicate per email dopo la prenotazione.',
         'faq_q5' => 'Come si svolge il tour guidato?',
         'faq_a5' => '<strong>Si prega di arrivare 30 minuti prima dell\'orario di partenza</strong> per firmare il contratto e effettuare il controllo del veicolo. Riceverete poi un <strong>rapido briefing</strong>. Prendete il volante del vostro veicolo elettrico e seguite il <strong>percorso guidato via GPS</strong> (tablet a bordo). Il percorso vi guida nei quartieri più belli di Nizza con soste fotografiche nei punti d\'interesse.',
+        'faq_q6' => 'Cosa portare il giorno del tour?',
+        'faq_a6' => 'È obbligatorio presentare la <strong>patente di guida fisica</strong> (le versioni digitali non sono accettate). Verrà effettuata una <strong>pre-autorizzazione di 500 €</strong> sulla vostra carta come cauzione: portate una <strong>carta bancaria fisica</strong> — le carte virtuali non sono accettate.',
         'contact_label' => 'CONTATTO',
         'contact_form_h3' => 'Inviaci un messaggio',
         'contact_send' => 'Invia messaggio',
@@ -182,6 +197,96 @@ shuffle($carousel_files);
 $carousel_photos = array_slice($carousel_files, 0, 4);
 // Fallback si pas encore de photos : placeholders CSS
 $carousel_count = max(count($carousel_photos), 4);
+
+// ─── Google Reviews ──────────────────────────────────────────────────────────
+function callGooglePlacesAPI(): array {
+    $placeId = 'ChIJGdQvT-7bzRIRgGC_8yxIQKc';
+    $apiKey  = defined('GOOGLE_PLACES_API_KEY') ? GOOGLE_PLACES_API_KEY : '';
+    $url     = "https://places.googleapis.com/v1/places/{$placeId}";
+
+    $ch = curl_init($url);
+    curl_setopt_array($ch, [
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_TIMEOUT        => 10,
+        CURLOPT_HTTPHEADER     => [
+            "X-Goog-Api-Key: {$apiKey}",
+            "X-Goog-FieldMask: rating,reviews,userRatingCount",
+        ],
+    ]);
+    $raw  = curl_exec($ch);
+    $code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    $err  = curl_error($ch);
+    curl_close($ch);
+
+    if (!$raw || $code !== 200) {
+        return ['_error' => "Erreur curl (HTTP {$code}) : {$err}"];
+    }
+    $data = json_decode($raw, true);
+    if (!isset($data['rating'])) {
+        return ['_error' => 'Réponse API invalide : ' . ($data['error']['message'] ?? json_encode($data))];
+    }
+    return $data;
+}
+
+function fetchGoogleReviews(PDO $db): array {
+    $meta = $db->query("SELECT * FROM nomadrive_reviews_meta WHERE source = 'google' LIMIT 1")->fetch(PDO::FETCH_ASSOC);
+    $needsSync = !$meta || (strtotime($meta['last_synced_at']) < time() - 3600);
+
+    if ($needsSync) {
+        $apiData = callGooglePlacesAPI();
+        if (!isset($apiData['_error'])) {
+            $upsert = $db->prepare("
+                INSERT INTO nomadrive_reviews
+                    (source, external_review_id, author_name, author_photo_url, rating, review_text, relative_date, fetched_at)
+                VALUES
+                    ('google', :gid, :author, :photo, :rating, :text, :reldate, NOW())
+                ON DUPLICATE KEY UPDATE
+                    author_name      = VALUES(author_name),
+                    author_photo_url = VALUES(author_photo_url),
+                    rating           = VALUES(rating),
+                    review_text      = VALUES(review_text),
+                    relative_date    = VALUES(relative_date),
+                    fetched_at       = NOW()
+            ");
+            foreach ($apiData['reviews'] ?? [] as $r) {
+                $upsert->execute([
+                    ':gid'    => $r['name'] ?? '',
+                    ':author' => $r['authorAttribution']['displayName'] ?? '',
+                    ':photo'  => $r['authorAttribution']['photoUri'] ?? null,
+                    ':rating' => (int)($r['rating'] ?? 0),
+                    ':text'   => $r['text']['text'] ?? null,
+                    ':reldate'=> $r['relativePublishTimeDescription'] ?? null,
+                ]);
+            }
+            $db->prepare("
+                INSERT INTO nomadrive_reviews_meta (source, overall_rating, total_count, last_synced_at)
+                VALUES ('google', :r, :t, NOW())
+                ON DUPLICATE KEY UPDATE overall_rating = :r, total_count = :t, last_synced_at = NOW()
+            ")->execute([
+                ':r' => $apiData['rating'] ?? 0,
+                ':t' => $apiData['userRatingCount'] ?? 0,
+            ]);
+            $meta = $db->query("SELECT * FROM nomadrive_reviews_meta WHERE source = 'google' LIMIT 1")->fetch(PDO::FETCH_ASSOC);
+        }
+    }
+
+    if (!$meta || empty($meta['overall_rating'])) {
+        return ['_error' => 'Aucun avis en base, synchronisation à venir.'];
+    }
+
+    $reviews = $db->query("
+        SELECT * FROM nomadrive_reviews WHERE rating = 5 ORDER BY RAND() LIMIT 6
+    ")->fetchAll(PDO::FETCH_ASSOC);
+
+    return [
+        'rating'  => (float)$meta['overall_rating'],
+        'total'   => (int)$meta['total_count'],
+        'reviews' => $reviews,
+    ];
+}
+$googleReviews = fetchGoogleReviews($db1);
+fetchGygReviews($db1);
+$gygMeta = $db1->query("SELECT overall_rating, total_count FROM nomadrive_reviews_meta WHERE source = 'gyg' LIMIT 1")->fetch(PDO::FETCH_ASSOC);
 
 // Form processing for contact
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'contact') {
@@ -261,7 +366,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
             $mail->CharSet = 'UTF-8';
             $mail->Encoding = 'base64';
 
-            $mail->setFrom('contact@madi.mt', 'NOMADRIVE');
+            $mail->setFrom('contact@nomadrive.fr', 'NOMADRIVE');
             $mail->addReplyTo($email, $name);
             $mail->addAddress('contact@nomadrive.fr', 'NOMADRIVE');
 
@@ -610,9 +715,9 @@ $canonical = $lang === 'fr' ? 'https://nomadrive.fr/' : 'https://nomadrive.fr/?l
             </div>
             <div class="nav-actions">
                 <div class="lang-switcher">
-                    <a href="?lang=fr" class="lang-btn <?= $lang === 'fr' ? 'active' : '' ?>">FR</a>
-                    <a href="?lang=en" class="lang-btn <?= $lang === 'en' ? 'active' : '' ?>">EN</a>
-                    <a href="?lang=it" class="lang-btn <?= $lang === 'it' ? 'active' : '' ?>">IT</a>
+                    <a href="?lang=fr" class="lang-btn <?= $lang === 'fr' ? 'active' : '' ?>">🇫🇷</a>
+                    <a href="?lang=en" class="lang-btn <?= $lang === 'en' ? 'active' : '' ?>">🇬🇧</a>
+                    <a href="?lang=it" class="lang-btn <?= $lang === 'it' ? 'active' : '' ?>">🇮🇹</a>
                 </div>
                 <a href="#reserver" class="nav-cta-btn"><?= $t['nav_book'] ?></a>
                 <button class="hamburger" id="hamburger-btn" aria-label="Ouvrir le menu" aria-expanded="false">
@@ -779,6 +884,82 @@ $canonical = $lang === 'fr' ? 'https://nomadrive.fr/' : 'https://nomadrive.fr/?l
 
             </div>
         </section>
+
+        <!-- ── Avis clients ── -->
+        <?php if (!empty($googleReviews['reviews'])): ?>
+        <section class="reviews-section">
+            <div class="reviews-inner">
+                <span class="product-badge">AVIS CLIENTS</span>
+                <div class="reviews-summary">
+                    <div class="reviews-platform-block">
+                        <svg width="36" height="36" viewBox="0 0 24 24" style="flex-shrink:0"><path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z"/><path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/></svg>
+                        <div class="reviews-score"><?= number_format($googleReviews['rating'], 1) ?></div>
+                        <div class="reviews-summary-right">
+                            <div class="reviews-stars">
+                                <?php for ($i = 1; $i <= 5; $i++): ?>
+                                    <svg viewBox="0 0 24 24" fill="<?= $i <= round($googleReviews['rating']) ? '#fbbf24' : 'none' ?>" stroke="#fbbf24" stroke-width="1.5"><polygon points="12,2 15.09,8.26 22,9.27 17,14.14 18.18,21.02 12,17.77 5.82,21.02 7,14.14 2,9.27 8.91,8.26"/></svg>
+                                <?php endfor; ?>
+                            </div>
+                            <p class="reviews-total"><?= $googleReviews['total'] ?> avis Google</p>
+                        </div>
+                    </div>
+                    <?php if (!empty($gygMeta['total_count'])): ?>
+                    <div class="reviews-platform-divider"></div>
+                    <div class="reviews-platform-block">
+                        <img src="/images/gyg_logo_short.png" width="36" height="36" alt="GYG" style="border-radius:6px;flex-shrink:0">
+                        <div class="reviews-score"><?= number_format($gygMeta['overall_rating'], 1) ?></div>
+                        <div class="reviews-summary-right">
+                            <div class="reviews-stars">
+                                <?php for ($i = 1; $i <= 5; $i++): ?>
+                                    <svg viewBox="0 0 24 24" fill="<?= $i <= round($gygMeta['overall_rating']) ? '#fbbf24' : 'none' ?>" stroke="#fbbf24" stroke-width="1.5"><polygon points="12,2 15.09,8.26 22,9.27 17,14.14 18.18,21.02 12,17.77 5.82,21.02 7,14.14 2,9.27 8.91,8.26"/></svg>
+                                <?php endfor; ?>
+                            </div>
+                            <p class="reviews-total"><?= $gygMeta['total_count'] ?> avis GetYourGuide</p>
+                        </div>
+                    </div>
+                    <?php endif; ?>
+                </div>
+                <div class="reviews-grid">
+                    <?php foreach ($googleReviews['reviews'] as $review): ?>
+                    <div class="review-card">
+                        <div class="review-header">
+                            <img src="<?= htmlspecialchars($review['author_photo_url'] ?? '') ?>" alt="" class="review-avatar" onerror="this.style.display='none'">
+                            <div class="review-meta">
+                                <strong class="review-author"><?= htmlspecialchars($review['author_name'] ?? '') ?></strong>
+                                <span class="review-date"><?= htmlspecialchars($review['relative_date'] ?? '') ?></span>
+                            </div>
+                            <div class="review-stars">
+                                <?php for ($i = 1; $i <= 5; $i++): ?>
+                                    <svg viewBox="0 0 24 24" fill="#fbbf24" stroke="#fbbf24" stroke-width="1.5" width="13" height="13"><polygon points="12,2 15.09,8.26 22,9.27 17,14.14 18.18,21.02 12,17.77 5.82,21.02 7,14.14 2,9.27 8.91,8.26"/></svg>
+                                <?php endfor; ?>
+                            </div>
+                        </div>
+                        <p class="review-text"><?= nl2br(htmlspecialchars($review['review_text'] ?? '')) ?></p>
+                        <div class="review-source review-source--<?= $review['source'] ?>">
+                            <?php if ($review['source'] === 'google'): ?>
+                                <svg width="14" height="14" viewBox="0 0 24 24"><path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z"/><path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/></svg>
+                                Google
+                            <?php else: ?>
+                                <img src="/images/gyg_logo_short.png" width="14" height="14" alt="GYG" style="border-radius:3px">
+                                GetYourGuide
+                            <?php endif; ?>
+                        </div>
+                    </div>
+                    <?php endforeach; ?>
+                </div>
+                <div class="reviews-cta-group">
+                    <a href="https://www.google.com/maps/search/?api=1&query=NOMADRIVE+Nice&query_place_id=ChIJGdQvT-7bzRIRgGC_8yxIQKc" target="_blank" rel="noopener" class="reviews-cta reviews-cta--google">
+                        <svg width="16" height="16" viewBox="0 0 24 24"><path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z"/><path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/></svg>
+                        Avis Google
+                    </a>
+                    <a href="https://www.getyourguide.com/nice-l314/discover-the-riviera-and-nice-by-electric-vehicle-t1285889/" target="_blank" rel="noopener" class="reviews-cta reviews-cta--gyg">
+                        <img src="/images/gyg_logo_short.png" width="16" height="16" alt="GYG" style="border-radius:3px">
+                        GetYourGuide
+                    </a>
+                </div>
+            </div>
+        </section>
+        <?php endif; ?>
 
         <!-- Contact Section -->
         <section class="contact-section" id="contact">

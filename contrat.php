@@ -49,6 +49,67 @@ try {
   }
 } catch (\Exception $e) {}
 
+// ─── Planning du jour ─────────────────────────────────────────────────────────
+$planningHour  = (int)date('H');
+$planAutoSlot  = $planningHour < 12 ? '10:00' : ($planningHour < 16 ? '14:00' : 'soir');
+
+$planVehicles  = [];
+try {
+  $pv = $db1->query("SELECT id, marque, modele, immatriculation, couleur FROM nomadrive_vehicules WHERE actif = 1 AND guide = 0 ORDER BY immatriculation");
+  if ($pv) $planVehicles = $pv->fetchAll(PDO::FETCH_ASSOC);
+} catch (\Exception $e) {}
+
+function planInterleave(array $vehicles): array {
+  $groups = [];
+  foreach ($vehicles as $v) $groups[$v['modele']][] = $v;
+  if (!$groups) return [];
+  $result = []; $maxLen = max(array_map('count', $groups));
+  foreach (array_keys($groups) as $m) sort($groups[$m]);
+  for ($i = 0; $i < $maxLen; $i++) foreach ($groups as $list) if (isset($list[$i])) $result[] = $list[$i];
+  return $result;
+}
+
+$planInterleaved = planInterleave($planVehicles);
+$planData = []; // [slotKey => [ ['id','first_name','last_name','email','pax','product','vehicles':[]] ]]
+
+try {
+  $pb = $db1->query("
+    SELECT DATE_FORMAT(start_datetime,'%H:%i') AS slot,
+           id, first_name, last_name, email, participants, product_name
+    FROM nomadrive_customers
+    WHERE booking_status = 'CONFIRMED'
+      AND DATE(start_datetime) = CURDATE()
+      AND product_id IN (1194328, 1197812)
+    ORDER BY slot, product_id, id
+  ");
+  if ($pb) {
+    $n = count($planInterleaved);
+    $offset = $n > 0 ? abs(crc32(date('Y-m-d'))) % $n : 0;
+    $vIdx = $offset;
+    $prevSlot = null;
+    foreach ($pb->fetchAll(PDO::FETCH_ASSOC) as $b) {
+      $slotKey = $b['slot'] < '16:00' ? $b['slot'] : 'soir';
+      if ($slotKey !== $prevSlot) { $vIdx = $offset; $prevSlot = $slotKey; } // reset per slot
+      $pax = max(1, (int)$b['participants']);
+      $groups = (int)ceil($pax / 2);
+      $vehs = [];
+      for ($g = 0; $g < $groups; $g++) {
+        if ($n > 0) $vehs[] = $planInterleaved[$vIdx % $n];
+        $vIdx++;
+      }
+      $planData[$slotKey][] = [
+        'id'         => $b['id'],
+        'first_name' => $b['first_name'],
+        'last_name'  => $b['last_name'],
+        'email'      => $b['email'] ?? '',
+        'pax'        => $pax,
+        'product'    => $b['product_name'] ?? '',
+        'vehicles'   => $vehs,
+      ];
+    }
+  }
+} catch (\Exception $e) {}
+
 // ─── Helper upload photos état des lieux ─────────────────────────────────────
 function uploadEtatAvantPhotos(array $b64list, string $ref, string $bucket, string $base): array {
   $urls = [];
@@ -371,7 +432,7 @@ HTML;
     <div style='font-family:Arial,sans-serif;color:#222;max-width:600px;margin:0 auto;padding:20px;'>
       <div style='text-align:center;margin-bottom:20px;'>
         <h1 style='color:#0077b6;margin:0;'>NOMADRIVE</h1>
-        <p style='color:#555;font-size:13px;'>2 place Guynemer, 06000 Nice</p>
+        <p style='color:#555;font-size:13px;'>2 place Guynemer, 06300 Nice</p>
       </div>
       <p>Bonjour <strong>{$nom_complet}</strong>,</p>
       <p>Merci pour votre location chez NOMADRIVE. Vous trouverez en pièce jointe votre contrat de location signé (<strong>{$contrat_ref}</strong>).</p>
@@ -401,7 +462,7 @@ HTML;
     $mail->CharSet = 'UTF-8';
     $mail->Encoding = 'base64';
 
-    $mail->setFrom('contact@madi.mt', 'NOMADRIVE');
+    $mail->setFrom('contact@nomadrive.fr', 'NOMADRIVE');
     $mail->addReplyTo('contact@nomadrive.fr', 'NOMADRIVE');
     $mail->addAddress($email, $nom_complet);
     $mail->addCC('contact@nomadrive.fr', 'NOMADRIVE');
@@ -519,7 +580,7 @@ HTML;
     .progress-wrap {
       background: #fff;
       border-bottom: 1px solid var(--border);
-      padding: 0 20px 16px;
+      padding: 16px 20px 16px;
     }
 
     .steps {
@@ -1044,7 +1105,7 @@ HTML;
     /* ── Mobile ── */
     @media (max-width: 480px) {
       .form-grid {
-        grid-template-columns: 1fr;
+        grid-column: 1fr;
       }
 
       .form-grid .full {
@@ -1063,6 +1124,103 @@ HTML;
         padding: 18px;
       }
     }
+
+    /* ── Planning du jour ── */
+    .plan-panel {
+      background: #eff6ff;
+      border-bottom: 2px solid #bfdbfe;
+      padding: 14px 20px;
+    }
+    .plan-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 10px;
+    }
+    .plan-title {
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--blue);
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      text-transform: uppercase;
+      letter-spacing: .04em;
+    }
+    .plan-toggle {
+      background: none;
+      border: none;
+      font-size: 12px;
+      color: var(--muted);
+      cursor: pointer;
+      padding: 4px 8px;
+      border-radius: 6px;
+    }
+    .plan-toggle:hover { background: rgba(0,0,0,.05); }
+    .plan-tabs {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      margin-bottom: 12px;
+    }
+    .plan-tab {
+      padding: 5px 14px;
+      border-radius: 20px;
+      border: 1.5px solid var(--blue);
+      background: transparent;
+      color: var(--blue);
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all .15s;
+      font-family: inherit;
+    }
+    .plan-tab.active {
+      background: var(--blue);
+      color: #fff;
+    }
+    .plan-slot { display: none; }
+    .plan-slot.active { display: block; }
+    .plan-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      margin-bottom: 10px;
+    }
+    @media (max-width: 480px) { .plan-row { grid-template-columns: 1fr; } }
+    .plan-pill {
+      display: inline-block;
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--blue);
+      background: #dbeafe;
+      border-radius: 10px;
+      padding: 1px 8px;
+      margin-left: 6px;
+      vertical-align: middle;
+    }
+    .plan-empty {
+      font-size: 13px;
+      color: var(--muted);
+      padding: 4px 0;
+    }
+    .btn-plan-fill {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      padding: 10px 20px;
+      background: var(--blue);
+      color: #fff;
+      border: none;
+      border-radius: 8px;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      font-family: inherit;
+      transition: opacity .15s;
+      margin-top: 2px;
+    }
+    .btn-plan-fill:hover { opacity: .88; }
   </style>
 </head>
 
@@ -1079,6 +1237,78 @@ HTML;
         <i class="fa-solid fa-gauge"></i> Dashboard
       </a>
     </header>
+
+    <!-- ═══ PLANNING DU JOUR ═══════════════════════════════════════════════════ -->
+    <div class="plan-panel" id="plan-panel">
+      <div class="plan-header">
+        <div class="plan-title">
+          <i class="fa-solid fa-sun-bright"></i> Départ du jour
+        </div>
+        <button class="plan-toggle" id="plan-toggle-btn" onclick="togglePlanPanel()">Réduire</button>
+      </div>
+      <div id="plan-body">
+        <!-- Onglets horaires -->
+        <div class="plan-tabs">
+          <?php
+          $planTabs = array_unique([...array_keys($planData), 'soir']);
+          sort($planTabs);
+          $tabLabels = ['10:00' => '10h — Matin', '14:00' => '14h — Après-midi', 'soir' => 'Soir / Sunset'];
+          foreach ($planTabs as $t):
+            $active = $t === $planAutoSlot ? 'active' : '';
+          ?>
+          <button class="plan-tab <?= $active ?>" data-slot="<?= htmlspecialchars($t) ?>" onclick="switchPlanTab(this)">
+            <?= $tabLabels[$t] ?? htmlspecialchars($t) ?>
+            <?php if (!empty($planData[$t])): ?><span class="plan-pill"><?= count($planData[$t]) ?></span><?php endif; ?>
+          </button>
+          <?php endforeach; ?>
+        </div>
+
+        <!-- Contenu par créneau -->
+        <?php foreach ($planTabs as $t):
+          $sid    = 'ps-' . preg_replace('/[^a-z0-9]/i', '-', $t);
+          $entries = $planData[$t] ?? [];
+          $isActive = $t === $planAutoSlot ? 'active' : '';
+        ?>
+        <div class="plan-slot <?= $isActive ?>" id="<?= $sid ?>">
+          <?php if (empty($entries)): ?>
+          <p class="plan-empty">Aucune réservation pour ce créneau — remplissez le formulaire manuellement.</p>
+          <?php else: ?>
+          <div class="plan-row">
+            <div class="form-group">
+              <label>Réservation</label>
+              <select id="<?= $sid ?>-booking" onchange="onPlanBooking('<?= $sid ?>', this)">
+                <option value="">— Choisir une réservation —</option>
+                <?php foreach ($entries as $e): ?>
+                <option value="<?= (int)$e['id'] ?>"
+                  data-fn="<?= htmlspecialchars($e['first_name']) ?>"
+                  data-ln="<?= htmlspecialchars($e['last_name']) ?>"
+                  data-email="<?= htmlspecialchars($e['email']) ?>"
+                  data-slot="<?= htmlspecialchars($t) ?>"
+                  data-vids="<?= htmlspecialchars(json_encode(array_column($e['vehicles'], 'id'))) ?>">
+                  <?= htmlspecialchars(trim($e['first_name'] . ' ' . $e['last_name'])) ?>
+                  (<?= $e['pax'] ?> pax<?= $e['pax'] > 2 ? ' — ' . (int)ceil($e['pax']/2) . ' voitures' : '' ?>)
+                </option>
+                <?php endforeach; ?>
+              </select>
+            </div>
+            <div class="form-group">
+              <label>Voiture pré-affectée</label>
+              <select id="<?= $sid ?>-vehicle">
+                <option value="">— Choisir d'abord la résa —</option>
+                <?php foreach ($planVehicles as $pv): ?>
+                <option value="<?= (int)$pv['id'] ?>"><?= htmlspecialchars($pv['marque'] . ' ' . $pv['modele'] . ' — ' . $pv['immatriculation']) ?></option>
+                <?php endforeach; ?>
+              </select>
+            </div>
+          </div>
+          <button class="btn-plan-fill" onclick="prefillFromPlan('<?= $sid ?>')">
+            <i class="fa-solid fa-arrow-down"></i> Pré-remplir le contrat
+          </button>
+          <?php endif; ?>
+        </div>
+        <?php endforeach; ?>
+      </div>
+    </div>
 
     <!-- Barre de progression -->
     <div class="progress-wrap">
@@ -1830,6 +2060,99 @@ HTML;
       t.classList.add('show');
       clearTimeout(toastTimer);
       toastTimer = setTimeout(() => t.classList.remove('show'), 3800);
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────────
+    // PLANNING DU JOUR
+    // ─────────────────────────────────────────────────────────────────────────────
+    const planAllVehicles = <?= json_encode(array_values($planVehicles)) ?>;
+
+    function togglePlanPanel() {
+      const body = document.getElementById('plan-body');
+      const btn  = document.getElementById('plan-toggle-btn');
+      const collapsed = body.style.display === 'none';
+      body.style.display = collapsed ? '' : 'none';
+      btn.textContent    = collapsed ? 'Réduire' : 'Départ du jour';
+    }
+
+    function switchPlanTab(btn) {
+      document.querySelectorAll('.plan-tab').forEach(b => b.classList.remove('active'));
+      document.querySelectorAll('.plan-slot').forEach(el => el.classList.remove('active'));
+      btn.classList.add('active');
+      const sid = 'ps-' + btn.dataset.slot.replace(/[^a-z0-9]/gi, '-');
+      const el = document.getElementById(sid);
+      if (el) el.classList.add('active');
+    }
+
+    function onPlanBooking(sid, sel) {
+      const opt    = sel.options[sel.selectedIndex];
+      const vehSel = document.getElementById(sid + '-vehicle');
+      vehSel.innerHTML = '';
+
+      if (!opt.value) {
+        vehSel.innerHTML = '<option value="">— Choisir d\'abord la résa —</option>';
+        planAllVehicles.forEach(v => {
+          const o = document.createElement('option');
+          o.value = v.id;
+          o.textContent = v.marque + ' ' + v.modele + ' — ' + v.immatriculation;
+          vehSel.appendChild(o);
+        });
+        return;
+      }
+
+      const preIds = JSON.parse(opt.dataset.vids || '[]');
+      const preSet = new Set(preIds.map(Number));
+
+      // Pre-assigned first (selected by default)
+      preIds.forEach((vid, i) => {
+        const v = planAllVehicles.find(x => x.id == vid);
+        if (!v) return;
+        const o = document.createElement('option');
+        o.value = v.id;
+        o.textContent = v.marque + ' ' + v.modele + ' — ' + v.immatriculation + (preIds.length > 1 ? ` (voiture ${i+1}/${preIds.length})` : ' (pré-affectée)');
+        o.selected = i === 0;
+        vehSel.appendChild(o);
+      });
+
+      // Separator then remaining
+      if (planAllVehicles.some(v => !preSet.has(v.id))) {
+        const sep = document.createElement('option');
+        sep.disabled = true;
+        sep.textContent = '── Autres véhicules ──';
+        vehSel.appendChild(sep);
+        planAllVehicles.forEach(v => {
+          if (preSet.has(v.id)) return;
+          const o = document.createElement('option');
+          o.value = v.id;
+          o.textContent = v.marque + ' ' + v.modele + ' — ' + v.immatriculation;
+          vehSel.appendChild(o);
+        });
+      }
+    }
+
+    function prefillFromPlan(sid) {
+      const bookSel = document.getElementById(sid + '-booking');
+      const vehSel  = document.getElementById(sid + '-vehicle');
+      const opt     = bookSel?.options[bookSel.selectedIndex];
+      if (!opt?.value) { showToast('Choisissez une réservation.'); return; }
+
+      document.getElementById('prenom').value     = opt.dataset.fn || '';
+      document.getElementById('nom').value        = (opt.dataset.ln || '').toUpperCase();
+      document.getElementById('email').value      = opt.dataset.email || '';
+      document.getElementById('date_debut').value = new Date().toISOString().split('T')[0];
+
+      const slotTime = opt.dataset.slot === 'soir' ? '18:00' : opt.dataset.slot;
+      document.getElementById('heure_debut').value = slotTime;
+
+      const vehId = vehSel?.value;
+      if (vehId) {
+        const vSel = document.getElementById('vehicule');
+        if (vSel) vSel.value = vehId;
+      }
+
+      showToast('Contrat pré-rempli !', 'success');
+      goToStep(1);
+      window.scrollTo({ top: 0, behavior: 'smooth' });
     }
 
     // ─────────────────────────────────────────────────────────────────────────────

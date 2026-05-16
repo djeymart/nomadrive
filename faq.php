@@ -45,6 +45,10 @@ $t = [
                 'q' => 'Que se passe-t-il en cas de mauvais temps ?',
                 'a' => 'En cas d\'alerte météo orange ou rouge Météo-France rendant la circulation dangereuse, nous nous réservons le droit d\'annuler ou de reporter le tour. Un report ou un <strong>remboursement intégral</strong> vous sera proposé.',
             ],
+            [
+                'q' => 'Quelle carte bancaire apporter pour la caution ?',
+                'a' => 'Une <strong>pré-autorisation bancaire de 500 €</strong> est effectuée à titre de caution au départ du tour. Vous devez impérativement vous munir d\'une <strong>carte bancaire physique</strong> (carte plastique) — <strong>les cartes virtuelles ne sont pas acceptées</strong>.',
+            ],
         ],
     ],
     'en' => [
@@ -89,6 +93,10 @@ $t = [
                 'q' => 'What happens in bad weather?',
                 'a' => 'In the event of an orange or red Météo-France weather warning making driving unsafe, we reserve the right to cancel or reschedule the tour. A rescheduled booking or a <strong>full refund</strong> will be offered.',
             ],
+            [
+                'q' => 'Which bank card do I need for the deposit?',
+                'a' => 'A <strong>€500 pre-authorisation</strong> is placed on your card as a security deposit at the start of the tour. You must bring a <strong>physical bank card</strong> (plastic card) — <strong>virtual cards are not accepted</strong>.',
+            ],
         ],
     ],
     'it' => [
@@ -132,6 +140,10 @@ $t = [
             [
                 'q' => 'Cosa succede in caso di maltempo?',
                 'a' => 'In caso di allerta meteo arancione o rossa di Météo-France che rende la guida pericolosa, ci riserviamo il diritto di annullare o posticipare il tour. Verrà proposta una data alternativa o un <strong>rimborso completo</strong>.',
+            ],
+            [
+                'q' => 'Quale carta bancaria portare per la cauzione?',
+                'a' => 'Una <strong>pre-autorizzazione di 500 €</strong> viene effettuata sulla vostra carta come cauzione all\'inizio del tour. È obbligatorio portare una <strong>carta bancaria fisica</strong> (carta plastificata) — <strong>le carte virtuali non sono accettate</strong>.',
             ],
         ],
     ],

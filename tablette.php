@@ -319,6 +319,45 @@ if (isset($_GET['spotify_q'])) {
             background: linear-gradient(135deg, rgba(251, 146, 60, 0.15) 0%, rgba(251, 146, 60, 0.05) 100%);
         }
 
+        /* ─── PREMIUM BADGE ─── */
+
+        .tour-card-premium {
+            border-color: rgba(251, 191, 36, 0.25);
+            background: linear-gradient(160deg, rgba(251, 191, 36, 0.04) 0%, rgba(255, 255, 255, 0.02) 100%);
+        }
+
+        .tour-card-premium:hover {
+            border-color: rgba(251, 191, 36, 0.5);
+            box-shadow: 0 8px 32px rgba(251, 191, 36, 0.1);
+        }
+
+        .tour-card-premium::before {
+            background: linear-gradient(135deg, rgba(251, 191, 36, 0.1) 0%, transparent 60%);
+        }
+
+        .tour-card-premium:hover .tour-arrow {
+            background: rgba(251, 191, 36, 0.15);
+        }
+
+        .tour-card-premium:hover .tour-arrow svg {
+            color: #fbbf24;
+        }
+
+        .tour-premium-badge {
+            position: absolute;
+            top: 14px;
+            right: 14px;
+            font-size: 10px;
+            font-weight: 700;
+            letter-spacing: 1.5px;
+            color: #fbbf24;
+            background: rgba(251, 191, 36, 0.12);
+            border: 1px solid rgba(251, 191, 36, 0.3);
+            border-radius: 6px;
+            padding: 3px 8px;
+            z-index: 2;
+        }
+
         .tour-info {
             position: relative;
             z-index: 1;
@@ -1212,17 +1251,17 @@ if (isset($_GET['spotify_q'])) {
             <div class="tour-cards">
 
                 <div class="tour-card" onclick="startTour('tour1')">
-                    <div class="tour-icon">🏖️</div>
+                    <div class="tour-icon">🏙️</div>
                     <div class="tour-info">
-                        <div class="tour-name" data-i18n="tour1_name">Tour 1 — City</div>
-                        <div class="tour-desc" data-i18n="tour1_desc">Promenade des Anglais, Port & Vieux Nice</div>
+                        <div class="tour-name" data-i18n="tour1_name">🏙️ City</div>
+                        <div class="tour-desc" data-i18n="tour1_desc">Promenade des Anglais · Negresco · Cimiez · Château de Nice</div>
                         <div class="tour-meta">
                             <span>
                                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                                     <circle cx="12" cy="12" r="10" />
                                     <polyline points="12,6 12,12 16,14" />
                                 </svg>
-                                ~2h
+                                2h
                             </span>
                             <span>
                                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -1241,24 +1280,24 @@ if (isset($_GET['spotify_q'])) {
                 </div>
 
                 <div class="tour-card" onclick="startTour('tour2')">
-                    <div class="tour-icon">🏘️</div>
+                    <div class="tour-icon">🌊</div>
                     <div class="tour-info">
-                        <div class="tour-name" data-i18n="tour2_name">Tour 2 — French Riviera</div>
-                        <div class="tour-desc" data-i18n="tour2_desc">Mont Boron, Cap-Ferrat & Villefranche</div>
+                        <div class="tour-name" data-i18n="tour2_name">🌊 French Riviera</div>
+                        <div class="tour-desc" data-i18n="tour2_desc">Villefranche-sur-Mer · Cap-Ferrat · Beaulieu-sur-Mer</div>
                         <div class="tour-meta">
                             <span>
                                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                                     <circle cx="12" cy="12" r="10" />
                                     <polyline points="12,6 12,12 16,14" />
                                 </svg>
-                                ~2h30
+                                2h30
                             </span>
                             <span>
                                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                                     <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" />
                                     <circle cx="12" cy="10" r="3" />
                                 </svg>
-                                ~40 km
+                                ~35 km
                             </span>
                         </div>
                     </div>
@@ -1269,11 +1308,12 @@ if (isset($_GET['spotify_q'])) {
                     </div>
                 </div>
 
-                <div class="tour-card" onclick="startTour('tour3')">
+                <div class="tour-card tour-card-premium" onclick="startTour('tour3')">
+                    <div class="tour-premium-badge" data-i18n="premium_badge">✦ GOLD</div>
                     <div class="tour-icon">🌅</div>
                     <div class="tour-info">
-                        <div class="tour-name" data-i18n="tour3_name">Tour 3 — Sunset</div>
-                        <div class="tour-desc" data-i18n="tour3_desc">Le parcours coucher de soleil sur la Riviera</div>
+                        <div class="tour-name" data-i18n="tour3_name">Sunset · Gold</div>
+                        <div class="tour-desc" data-i18n="tour3_desc">Place Masséna · Promenade des Anglais · Château de Nice · Belvédère</div>
                         <div class="tour-meta">
                             <span>
                                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -1287,7 +1327,7 @@ if (isset($_GET['spotify_q'])) {
                                     <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" />
                                     <circle cx="12" cy="10" r="3" />
                                 </svg>
-                                ~20 km
+                                ~35 km
                             </span>
                         </div>
                     </div>
@@ -1452,9 +1492,9 @@ if (isset($_GET['spotify_q'])) {
         const GPS_UPDATE_INTERVAL = 3000;
 
         const TOUR_LABELS = {
-            tour1: { fr: 'Tour 1 — City', en: 'Tour 1 — City', it: 'Tour 1 — City' },
-            tour2: { fr: 'Tour 2 — French Riviera', en: 'Tour 2 — French Riviera', it: 'Tour 2 — French Riviera' },
-            tour3: { fr: 'Tour 3 — Sunset', en: 'Tour 3 — Sunset', it: 'Tour 3 — Sunset' }
+            tour1: { fr: '🏙️ City', en: '🏙️ City', it: '🏙️ City' },
+            tour2: { fr: '🌊 French Riviera', en: '🌊 French Riviera', it: '🌊 French Riviera' },
+            tour3: { fr: '🌅 Sunset · Gold', en: '🌅 Sunset · Gold', it: '🌅 Sunset · Gold' }
         };
 
         // ═══════════════════════════════════════════
@@ -1465,12 +1505,13 @@ if (isset($_GET['spotify_q'])) {
             fr: {
                 tagline: 'Explorez Nice en liberté',
                 chooseRoute: 'Choisissez votre parcours',
-                tour1_name: 'Tour 1 — City',
-                tour1_desc: 'Promenade des Anglais, Port & Vieux Nice',
-                tour2_name: 'Tour 2 — French Riviera',
-                tour2_desc: 'Nice, Cap-Ferrat & Villefranche',
-                tour3_name: 'Tour 3 — Sunset',
-                tour3_desc: 'Le parcours coucher de soleil sur la Riviera',
+                tour1_name: '🏙️ City',
+                tour1_desc: 'Promenade des Anglais · Negresco · Cimiez · Château de Nice',
+                tour2_name: '🌊 French Riviera',
+                tour2_desc: 'Villefranche-sur-Mer · Cap-Ferrat · Beaulieu-sur-Mer',
+                tour3_name: '🌅 Sunset · Gold',
+                tour3_desc: 'Place Masséna · Promenade des Anglais · Beaulieu-sur-Mer · Château de Nice · Belvédère',
+                premium_badge: '✦ GOLD',
                 footer_info: '<strong>Naviguez librement</strong> sur la carte pour découvrir les lieux.<br>Suivez le tracé de votre parcours et explorez à votre rythme.',
                 loading: 'Chargement de votre parcours...',
                 gps_searching: 'Recherche GPS...',
@@ -1485,12 +1526,13 @@ if (isset($_GET['spotify_q'])) {
             en: {
                 tagline: 'Explore Nice freely',
                 chooseRoute: 'Choose your route',
-                tour1_name: 'Tour 1 — City',
-                tour1_desc: 'Promenade des Anglais, Port & Old Nice',
-                tour2_name: 'Tour 2 — French Riviera',
-                tour2_desc: 'Nice, Cap-Ferrat & Villefranche',
-                tour3_name: 'Tour 3 — Sunset',
-                tour3_desc: 'The sunset drive along the Riviera',
+                tour1_name: '🏙️ City',
+                tour1_desc: 'Promenade des Anglais · Negresco · Cimiez · Château de Nice',
+                tour2_name: '🌊 French Riviera',
+                tour2_desc: 'Villefranche-sur-Mer · Cap-Ferrat · Beaulieu-sur-Mer',
+                tour3_name: '🌅 Sunset · Gold',
+                tour3_desc: 'Place Masséna · Promenade des Anglais · Beaulieu-sur-Mer · Château de Nice · Belvedere',
+                premium_badge: '✦ GOLD',
                 footer_info: '<strong>Navigate freely</strong> on the map to discover places.<br>Follow your route and explore at your own pace.',
                 loading: 'Loading your route...',
                 gps_searching: 'Searching GPS...',
@@ -1505,12 +1547,13 @@ if (isset($_GET['spotify_q'])) {
             it: {
                 tagline: 'Esplora Nizza in libertà',
                 chooseRoute: 'Scegli il tuo percorso',
-                tour1_name: 'Tour 1 — City',
-                tour1_desc: 'Promenade des Anglais, Porto & Nizza Vecchia',
-                tour2_name: 'Tour 2 — French Riviera',
-                tour2_desc: 'Nice, Cap-Ferrat & Villefranche',
-                tour3_name: 'Tour 3 — Sunset',
-                tour3_desc: 'Il percorso al tramonto sulla Riviera',
+                tour1_name: '🏙️ City',
+                tour1_desc: 'Promenade des Anglais · Negresco · Cimiez · Castello di Nizza',
+                tour2_name: '🌊 French Riviera',
+                tour2_desc: 'Villefranche-sur-Mer · Cap-Ferrat · Beaulieu-sur-Mer',
+                tour3_name: '🌅 Sunset · Gold',
+                tour3_desc: 'Place Masséna · Promenade des Anglais · Beaulieu-sur-Mer · Castello di Nizza · Belvedere',
+                premium_badge: '✦ GOLD',
                 footer_info: '<strong>Naviga liberamente</strong> sulla mappa per scoprire i luoghi.<br>Segui il tracciato del tuo percorso e esplora al tuo ritmo.',
                 loading: 'Caricamento del percorso...',
                 gps_searching: 'Ricerca GPS...',
@@ -1548,9 +1591,9 @@ if (isset($_GET['spotify_q'])) {
 
         // Couleurs par tour (pour les tracés)
         const TOUR_COLORS = {
-            tour1: '#1267FF',
-            tour2: '#FF6712',
-            tour3: '#FF4444'
+            tour1: '#4ecdc4',
+            tour2: '#8b5cf6',
+            tour3: '#fbbf24'
         };
 
         // ═══════════════════════════════════════════

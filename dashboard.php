@@ -135,7 +135,7 @@ if ($action === 'save_etat_apres') {
   <div style='font-family:Arial,sans-serif;color:#222;max-width:600px;margin:0 auto;padding:20px;'>
     <div style='text-align:center;margin-bottom:20px;'>
       <h1 style='color:#0077b6;margin:0;'>NOMADRIVE</h1>
-      <p style='color:#555;font-size:13px;'>2 place Guynemer, 06000 Nice</p>
+      <p style='color:#555;font-size:13px;'>2 place Guynemer, 06300 Nice</p>
     </div>
     <p>Bonjour <strong>{$nom_complet}</strong>,</p>
     <p>Votre location <strong>{$dos['ref']}</strong> est maintenant clôturée. Voici le récapitulatif :</p>
@@ -172,7 +172,7 @@ if ($action === 'save_etat_apres') {
     $mail->Port       = 587;
     $mail->CharSet    = 'UTF-8';
     $mail->Encoding   = 'base64';
-    $mail->setFrom('contact@madi.mt', 'NOMADRIVE');
+    $mail->setFrom('contact@nomadrive.fr', 'NOMADRIVE');
     $mail->addReplyTo('contact@nomadrive.fr', 'NOMADRIVE');
     $mail->addAddress($dos['email'], $nom_complet);
     $mail->addCC('contact@nomadrive.fr', 'NOMADRIVE');
