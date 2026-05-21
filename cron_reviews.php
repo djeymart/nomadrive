@@ -30,7 +30,7 @@ function cronSendMail(string $toEmail, string $toName, string $subject, string $
         $mail->Encoding   = 'base64';
         $mail->setFrom('contact@nomadrive.fr', 'NOMADRIVE');
         $mail->addReplyTo('contact@nomadrive.fr', 'NOMADRIVE');
-        $mail->addAddress($toEmail, $toName);
+        $mail->addAddress(MAIL_TEST_OVERRIDE ?? $toEmail, $toName);
         if (REVIEW_CC_EMAIL !== '') {
             $mail->addCC(REVIEW_CC_EMAIL, 'NOMADRIVE');
         }

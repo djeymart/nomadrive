@@ -1,4 +1,9 @@
 <?php
+$madiDir = '/var/www/html/madi.mt';
+if (!is_dir($madiDir)) $madiDir = dirname(__DIR__);
+require_once $madiDir . '/vendor/autoload.php';
+require_once $madiDir . '/php/fonctions.php';
+require_once $madiDir . '/php/config.php';
 require_once __DIR__ . '/config.php';
 $lang = in_array($_GET['lang'] ?? '', ['fr', 'en']) ? $_GET['lang'] : 'fr';
 $caution = defined('CAUTION_MONTANT') ? CAUTION_MONTANT : 500;

@@ -2,9 +2,9 @@
 
 ---
 
-## Crons (toutes les 15 min)
+## Crons
 
-### cron_reviews.php
+### cron_reviews.php — toutes les 15 min
 `*/15 * * * * php /var/www/html/nomadrive/cron_reviews.php >> /var/log/nomadrive_reviews.log 2>&1`
 
 Fait trois choses en un seul passage :
@@ -27,7 +27,35 @@ Fait trois choses en un seul passage :
 
 ---
 
-### cron_closeouts.php
+### cron_caution.php — toutes les heures (actuellement commenté)
+```
+# 0 * * * * php /var/www/html/nomadrive/cron_caution.php >> /var/log/nomadrive_caution.log 2>&1
+```
+A activer quand le flow link_mode (pré-complétion client) est ouvert aux clients.
+
+Envoie l'email pré-arrivée à chaque client dont l'heure d'envoi tombe dans la fenêtre de la dernière heure écoulée.
+
+**Fenêtre d'envoi par créneau :**
+- Tours **10h** → envoi à **J-1 16h00** (18h avant le départ)
+- Tours **14h** → envoi à **J-1 20h00** (18h avant le départ)
+- Tours **18h** → envoi à **J 08h00** (10h avant le départ)
+
+**Ce que fait chaque passage :**
+1. SQL : sélectionne les contrats confirmés dont `tour_datetime - lead_hours` tombe dans `[NOW()-1h, NOW()]` et `email_sent_at IS NULL` dans `nomadrive_stripe_cautions`
+2. Pour chaque contrat : insère une ligne de tracking dans `nomadrive_stripe_cautions` (`status=pending`, sans session Stripe — créée lazily dans `contrat.php` quand le client clique)
+3. Construit le lien sécurisé `contrat.php?cid=X&token=Y` (HMAC-SHA256, 24 chars)
+4. Envoie l'email pré-arrivée bilingue EN/FR via Sarbacane SMTP
+5. Met à jour `email_sent_at` dans `nomadrive_stripe_cautions`
+
+**Email pré-arrivée :**
+- Style dark header / white card, template identique à tous les emails NOMADRIVE
+- Un seul bouton CTA "Prepare my arrival" / "Préparer mon arrivée" → `contrat.php?cid=X&token=Y`
+- Encadré orange : caution demandée sur place si non faite en ligne, cartes physiques uniquement, permis physique obligatoire
+- Le nom du véhicule n'est jamais mentionné
+
+---
+
+### cron_closeouts.php — toutes les 15 min
 `*/15 * * * * php /var/www/html/nomadrive/cron_closeouts.php >> /var/log/nomadrive_closeouts.log 2>&1`
 
 **Phase 1 — Blocage overcapacity**
@@ -71,30 +99,65 @@ Fait trois choses en un seul passage :
 
 ---
 
+## Templates email
+
+Tous les emails NOMADRIVE partagent le même template dark-header / white card, bilingue EN/FR :
+- Header `#0f172a` avec logo + "NOMADRIVE" + "NICE · CÔTE D'AZUR"
+- Corps EN en haut, séparateur "— Version française ci-dessous —", corps FR en bas
+- Footer avec mentions légales
+
+| Email | Déclenché par | Contenu |
+|---|---|---|
+| Pré-arrivée | `cron_caution.php` ou `stripe_caution.php send_email` | Lien contrat (1 seul bouton CTA), encadré orange obligations |
+| Confirmation contrat | `contrat.php` (après signature) | Réf. contrat, date, PDF en pièce jointe. Véhicule masqué en link_mode. |
+| Clôture | `dashboard.php save_etat_apres` | Récap km + distance, statut caution (vert = libérée, orange = retenu) |
+| Avis | `cron_reviews.php` | Liens GYG + Google selon canal Bokun |
+
+---
+
 ## Actions manuelles (manage.php)
 
-| Action | Déclencheur | Ce qu'elle fait |
-|---|---|---|
-| Sync Bokun | Bouton + plage de dates | Même upsert que le cron, sur la plage choisie |
-| Audit ressources | Bouton | Vérifie par résa si le bon nombre de voitures est assigné dans le pool Bokun |
-| Compenser pool | Bouton par résa | Closeout N voitures libres + sauvegarde `closeout_resource_ids` |
-| Assigner voiture | Bouton par résa | POST assignment Bokun via `experienceBookingId` |
-| Vérifier annulations | Bouton | Même logique que Phase 2 du cron, à la demande |
-| Vérifier le stock | Bouton | GET assignments Bokun par date, tableau par horaire (10h/14h), statut par créneau |
+> **Note :** `BOKUN_API_ENABLED = false` dans manage.php — toutes les actions qui appellent l'API Bokun sont désactivées le temps des tests. Le stock check reste actif (lecture seule locale).
+
+| Action | Déclencheur | Bokun API | Ce qu'elle fait |
+|---|---|---|---|
+| Vérifier le stock | **Auto au chargement** | Non | Calcule les places libres par date/créneau depuis `nomadrive_customers` |
+| Sync Bokun | Bouton + plage de dates | Oui (désactivé) | Upsert résas sur la plage choisie |
+| Audit ressources | Bouton | Oui (désactivé) | Vérifie par résa le nombre de voitures assignées dans le pool |
+| Compenser pool | Bouton par résa | Oui (désactivé) | Closeout N voitures libres + sauvegarde `closeout_resource_ids` |
+| Assigner voiture | Bouton par résa | Oui (désactivé) | POST assignment via `experienceBookingId` |
+| Vérifier annulations | Bouton | Oui (désactivé) | Libère les closeouts des résas annulées |
+
+---
+
+## Flux arrivée client (dashboard.php)
+
+Le dossier de location n'est créé qu'à l'arrivée physique du client — jamais lors de la pré-complétion du contrat en ligne.
+
+**Client a pré-rempli (link_mode) :**
+1. Section "Pré-remplis" du dashboard → l'opérateur voit le client avec statut caution + permis
+2. L'opérateur choisit le véhicule dans le sélecteur et clique "Ouvrir"
+3. `action=open_dossier` → `nomadrive_dossiers` créé, `vehicule_id` mis à jour sur le contrat
+4. Redirection vers `dossier_detail` → photos état avant saisies
+
+**Client sans pré-remplissage :**
+1. Contrat créé sur place via `contrat.php` mode opérateur (5 étapes)
+2. Dossier créé à l'envoi du formulaire
 
 ---
 
 ## Ce qui est encore manuel
 
-- Ouverture et clôture des contrats de location (contrat.php + dossiers)
-- Affectation des véhicules clients aux groupes (planning proposé, pas persisté)
+- Contrats sur place si le client n'a pas pré-rempli son dossier en ligne (contrat.php mode opérateur)
+- Vérification du permis et validation du véhicule au départ (dashboard.php)
+- Changement de véhicule si nécessaire (dashboard.php → dossier_detail → sélecteur)
+- Affectation des véhicules clients aux groupes du jour (planning manage.php, pas persisté)
 - Envoi des avis GYG depuis le Mac (push_reviews.php)
-- Correction des anomalies d'assignation Bokun (audit → bouton fix)
+- Correction des anomalies d'assignation Bokun (audit → bouton fix, Bokun API à réactiver)
 
 ---
 
 ## Pistes d'amélioration
 
--
--
--
+- Réactiver `BOKUN_API_ENABLED` une fois les tests Bokun validés
+- Passer `STRIPE_MODE` en `live` et activer `cron_caution.php` quand le flow link_mode est validé en production

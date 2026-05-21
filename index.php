@@ -1,13 +1,12 @@
 <?php
-require_once __DIR__ . '/config.php';
-require_once __DIR__ . '/sync_gyg_reviews.php';
-
 // ─── Connexion base de données ────────────────────────────────────────────────
 $madiDir = '/var/www/html/madi.mt';
 if (!is_dir($madiDir)) $madiDir = dirname(__DIR__);
 require_once $madiDir . '/vendor/autoload.php';
 require_once $madiDir . '/php/fonctions.php';
 require_once $madiDir . '/php/config.php';
+require_once __DIR__ . '/config.php';
+require_once __DIR__ . '/sync_gyg_reviews.php';
 $db1->query("SET NAMES 'utf8mb4'");
 
 // ─── Langue ──────────────────────────────────────────────────────────────────
@@ -345,9 +344,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
         require_once $autoloadFile;
     }
 
-    // Lire les SMTP credentials depuis .env
-    $smtpUsername = defined('SMTP_USERNAME') ? SMTP_USERNAME : '';
-    $smtpPassword = defined('SMTP_PASSWORD') ? SMTP_PASSWORD : '';
+    $smtpUsername = SMTP_USERNAME;
+    $smtpPassword = SMTP_PASSWORD;
 
     // Send Mail via Sarbacane SMTP
     $sent = false;
@@ -690,6 +688,14 @@ $canonical = $lang === 'fr' ? 'https://nomadrive.fr/' : 'https://nomadrive.fr/?l
                 "acceptedAnswer": {
                     "@type": "Answer",
                     "text": "À votre arrivée, un briefing rapide vous est donné. Vous prenez ensuite le volant de votre véhicule électrique et suivez le guide (tablette embarquée et accompagnement humain). Le parcours vous guide à travers les plus beaux quartiers de Nice avec des arrêts photo aux points d'intérêt."
+                }
+            },
+            {
+                "@type": "Question",
+                "name": "Où se garer à proximité ?",
+                "acceptedAnswer": {
+                    "@type": "Answer",
+                    "text": "Le Parking Port Lympia se trouve à 200 mètres de notre local."
                 }
             }
         ]

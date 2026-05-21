@@ -11,9 +11,26 @@ if (!is_dir($madiDir))
 require_once $madiDir . '/vendor/autoload.php';
 require_once $madiDir . '/php/fonctions.php';
 require_once $madiDir . '/php/config.php';
+require_once __DIR__ . '/config.php';
 $db1->query("SET NAMES 'utf8mb4'");
 
 require_once __DIR__ . '/nomadrive_auth.php';
+
+// ── Lien pré-arrivée sécurisé (token HMAC) ────────────────────────────────────
+function ndContratToken(int $id): string {
+  return substr(hash_hmac('sha256', (string)$id, MANAGE_PASSWORD), 0, 24);
+}
+$link_cid   = (int)($_GET['cid'] ?? $_POST['link_cid'] ?? 0);
+$link_token = preg_replace('/[^a-zA-Z0-9]/', '', $_GET['token'] ?? $_POST['link_token'] ?? '');
+$link_mode  = false;
+$link_data  = null;
+if ($link_cid > 0 && strlen($link_token) === 24
+    && hash_equals(ndContratToken($link_cid), $link_token)) {
+  $ls = $db1->prepare("SELECT id, nom, prenom, email, vehicule_id, vehicule, date_debut, heure_debut FROM nomadrive_contrats WHERE id = ?");
+  $ls->execute([$link_cid]);
+  $link_data = $ls->fetch(PDO::FETCH_ASSOC);
+  if ($link_data) $link_mode = true;
+}
 
 // ─── Chargement des véhicules ─────────────────────────────────────────────────
 $vehicules_list         = []; // tous (pour lookup POST)
@@ -127,13 +144,96 @@ function uploadEtatAvantPhotos(array $b64list, string $ref, string $bucket, stri
 }
 
 // ─── Auth guard ───────────────────────────────────────────────────────────────
-if (!ndIsAuth($db1)) {
+if (!ndIsAuth($db1) && !$link_mode) {
   if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     header('Content-Type: application/json');
     echo json_encode(['success' => false, 'message' => 'Session expirée. Veuillez vous reconnecter.']);
     exit;
   }
   header('Location: dashboard.php?view=login');
+  exit;
+}
+
+// ─── Action : redirect vers Stripe Checkout (link_mode, GET) ─────────────────
+if ($link_mode && ($_GET['action'] ?? '') === 'stripe_redirect') {
+  // Réutilise la session existante si encore active
+  $scRow = $db1->prepare("SELECT checkout_url FROM nomadrive_stripe_cautions WHERE contrat_id=? AND status IN ('pending','authorized') AND checkout_url IS NOT NULL ORDER BY id DESC LIMIT 1");
+  $scRow->execute([$link_cid]);
+  $existingUrl = $scRow->fetchColumn();
+  if ($existingUrl) {
+    header('Location: ' . $existingUrl);
+    exit;
+  }
+  $stripeKey = STRIPE_MODE === 'live' ? STRIPE_LIVE_SECRET_KEY : STRIPE_TEST_SECRET_KEY;
+  \Stripe\Stripe::setApiKey($stripeKey);
+  $cautionCents = (int)STRIPE_CAUTION_AMOUNT;
+  $baseUrl  = 'https://nomadrive.fr';
+  $qs       = 'cid=' . $link_cid . '&token=' . urlencode($link_token);
+  $successU = $baseUrl . '/contrat.php?' . $qs . '&caution=ok';
+  $cancelU  = $baseUrl . '/contrat.php?' . $qs . '&caution=cancel';
+  try {
+    $session = \Stripe\Checkout\Session::create([
+      'payment_method_types' => ['card'],
+      'mode'                 => 'payment',
+      'payment_intent_data'  => ['capture_method' => 'manual'],
+      'customer_email'       => $link_data['email'],
+      'line_items'           => [[
+        'price_data' => [
+          'currency'     => 'eur',
+          'unit_amount'  => $cautionCents,
+          'product_data' => [
+            'name'        => 'Caution NOMADRIVE — pré-autorisation',
+            'description' => 'Tour du ' . ($link_data['date_debut'] ?? '') . ' à ' . substr($link_data['heure_debut'] ?? '', 0, 5),
+          ],
+        ],
+        'quantity' => 1,
+      ]],
+      'success_url' => $successU,
+      'cancel_url'  => $cancelU,
+    ]);
+    // Mettre à jour la ligne tracking du cron si elle existe, sinon insérer
+    $trackRow = $db1->prepare("SELECT id FROM nomadrive_stripe_cautions WHERE contrat_id=? AND stripe_session_id IS NULL ORDER BY id DESC LIMIT 1");
+    $trackRow->execute([$link_cid]);
+    if ($tid = $trackRow->fetchColumn()) {
+      $db1->prepare("UPDATE nomadrive_stripe_cautions SET stripe_session_id=?, amount=?, status='pending', checkout_url=? WHERE id=?")
+          ->execute([$session->id, $cautionCents, $session->url, $tid]);
+    } else {
+      $db1->prepare("INSERT INTO nomadrive_stripe_cautions (contrat_id, stripe_session_id, amount, status, checkout_url) VALUES (?,?,?,'pending',?)")
+          ->execute([$link_cid, $session->id, $cautionCents, $session->url]);
+    }
+    header('Location: ' . $session->url);
+  } catch (\Stripe\Exception\ApiErrorException $e) {
+    error_log('[NOMADRIVE] contrat.php stripe_redirect: ' . $e->getMessage());
+    header('Location: ' . $cancelU . '&err=stripe');
+  }
+  exit;
+}
+
+// ─── Action : sauvegarde permis avant redirect Stripe (AJAX, link_mode) ───────
+if ($link_mode && ($_POST['action'] ?? '') === 'save_permis') {
+  header('Content-Type: application/json');
+  $ref_pm  = 'ND-' . str_pad($link_cid, 5, '0', STR_PAD_LEFT);
+  $bkt_pm  = 'madi_bucket';
+  $base_pm = "https://storage.googleapis.com/$bkt_pm";
+  $tok_pm  = substr(bin2hex(random_bytes(6)), 0, 8);
+  $saved   = [];
+  foreach (['recto', 'verso'] as $side) {
+    $b64 = $_POST['permis_' . $side] ?? '';
+    if (empty($b64) || !preg_match('/^data:(image\/\w+);base64,(.+)$/s', $b64, $m)) continue;
+    $ext = $m[1] === 'image/png' ? 'png' : 'jpg';
+    $tmp = tempnam(sys_get_temp_dir(), 'nd_pm_') . ".$ext";
+    file_put_contents($tmp, base64_decode($m[2]));
+    $gpath = "nomadrive/permis/{$ref_pm}-{$side}-{$tok_pm}.{$ext}";
+    upload_object($bkt_pm, $gpath, $tmp, 1);
+    @unlink($tmp);
+    $saved[$side] = "$base_pm/$gpath";
+  }
+  if (!empty($saved)) {
+    $sets   = array_map(fn($s) => "url_permis_{$s} = ?", array_keys($saved));
+    $params = array_merge(array_values($saved), [$link_cid]);
+    $db1->prepare("UPDATE nomadrive_contrats SET " . implode(', ', $sets) . " WHERE id=?")->execute($params);
+  }
+  echo json_encode(['success' => true]);
   exit;
 }
 
@@ -176,23 +276,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
   $permis_v = $_POST['permis_verso'] ?? '';    // base64
   $empreinte_photo = $_POST['empreinte_photo'] ?? ''; // base64
 
-  // Chargement du .env — même logique qu'influencify
-  $envFile = $madiDir . '/.env';
-  if (!file_exists($envFile))
-    $envFile = __DIR__ . '/.env';
-  if (file_exists($envFile)) {
-    $envLines = file($envFile, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
-    foreach ($envLines as $line) {
-      if (strpos($line, '#') === 0)
-        continue;
-      if (strpos($line, '=') !== false) {
-        list($k, $v) = explode('=', $line, 2);
-        $_ENV[trim($k)] = trim($v);
-      }
-    }
-  }
-  $smtpUsername = $_ENV['SMTP_USERNAME'] ?? '';
-  $smtpPassword = $_ENV['SMTP_PASSWORD'] ?? '';
+  $smtpUsername = SMTP_USERNAME;
+  $smtpPassword = SMTP_PASSWORD;
 
   if (empty($nom) || empty($prenom) || !$email || empty($signature)) {
     echo json_encode(['success' => false, 'message' => 'Données manquantes.']);
@@ -202,31 +287,44 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
   $date_contrat = date('d/m/Y');
   $nom_complet = htmlspecialchars("$prenom $nom");
 
-  // ── 1. INSERT initial pour obtenir l'ID du contrat ────────────────────────
-  $stmt = $db1->prepare("
-        INSERT INTO nomadrive_contrats
-            (nom, prenom, email, adresse,
-             vehicule_id, vehicule, date_debut, heure_debut, dossier_empreinte,
-             signature, created_at)
-        VALUES
-            (:nom, :prenom, :email, :adresse,
-             :vehicule_id, :vehicule, :date_debut, :heure_debut, :dossier_empreinte,
-             :signature, NOW())
-    ");
-  $stmt->bindValue(':nom', $nom, PDO::PARAM_STR);
-  $stmt->bindValue(':prenom', $prenom, PDO::PARAM_STR);
-  $stmt->bindValue(':email', $email, PDO::PARAM_STR);
-  $stmt->bindValue(':adresse', $adresse, PDO::PARAM_STR);
-  $stmt->bindValue(':vehicule_id', $vehicule_id, PDO::PARAM_INT);
-  $stmt->bindValue(':vehicule', $vehicule, PDO::PARAM_STR);
-  $stmt->bindValue(':date_debut', $date_debut ?: null, $date_debut ? PDO::PARAM_STR : PDO::PARAM_NULL);
-  $stmt->bindValue(':heure_debut', $heure_debut ?: null, $heure_debut ? PDO::PARAM_STR : PDO::PARAM_NULL);
-  $stmt->bindValue(':dossier_empreinte', $dossier_empreinte ?: null, $dossier_empreinte ? PDO::PARAM_STR : PDO::PARAM_NULL);
-  $stmt->bindValue(':signature', $signature, PDO::PARAM_STR);
-  $stmt->execute();
-  $contrat_id = $db1->lastInsertId();
-  $contrat_ref = 'ND-' . str_pad($contrat_id, 5, '0', STR_PAD_LEFT);
+  // ── 1. INSERT ou UPDATE selon le mode ────────────────────────────────────
   $file_token = substr(bin2hex(random_bytes(6)), 0, 8); // token anti-enumeration
+  if ($link_mode) {
+    // Lien pré-arrivée : on met à jour le contrat existant (signature + infos client)
+    $contrat_id  = $link_cid;
+    $contrat_ref = 'ND-' . str_pad($contrat_id, 5, '0', STR_PAD_LEFT);
+    $db1->prepare("UPDATE nomadrive_contrats SET nom=?, prenom=?, email=?, adresse=?, dossier_empreinte=?, signature=? WHERE id=?")
+        ->execute([$nom, $prenom, $email, $adresse, $dossier_empreinte ?: null, $signature, $contrat_id]);
+    // Récupérer vehicule_id depuis le contrat existant pour la suite du handler
+    $vehicule_id = (int)($link_data['vehicule_id'] ?? 0);
+    $vehicule    = $link_data['vehicule'] ?? '';
+    $date_debut  = $link_data['date_debut'] ?? '';
+    $heure_debut = $link_data['heure_debut'] ?? '';
+  } else {
+    $stmt = $db1->prepare("
+          INSERT INTO nomadrive_contrats
+              (nom, prenom, email, adresse,
+               vehicule_id, vehicule, date_debut, heure_debut, dossier_empreinte,
+               signature, created_at)
+          VALUES
+              (:nom, :prenom, :email, :adresse,
+               :vehicule_id, :vehicule, :date_debut, :heure_debut, :dossier_empreinte,
+               :signature, NOW())
+      ");
+    $stmt->bindValue(':nom', $nom, PDO::PARAM_STR);
+    $stmt->bindValue(':prenom', $prenom, PDO::PARAM_STR);
+    $stmt->bindValue(':email', $email, PDO::PARAM_STR);
+    $stmt->bindValue(':adresse', $adresse, PDO::PARAM_STR);
+    $stmt->bindValue(':vehicule_id', $vehicule_id, PDO::PARAM_INT);
+    $stmt->bindValue(':vehicule', $vehicule, PDO::PARAM_STR);
+    $stmt->bindValue(':date_debut', $date_debut ?: null, $date_debut ? PDO::PARAM_STR : PDO::PARAM_NULL);
+    $stmt->bindValue(':heure_debut', $heure_debut ?: null, $heure_debut ? PDO::PARAM_STR : PDO::PARAM_NULL);
+    $stmt->bindValue(':dossier_empreinte', $dossier_empreinte ?: null, $dossier_empreinte ? PDO::PARAM_STR : PDO::PARAM_NULL);
+    $stmt->bindValue(':signature', $signature, PDO::PARAM_STR);
+    $stmt->execute();
+    $contrat_id  = $db1->lastInsertId();
+    $contrat_ref = 'ND-' . str_pad($contrat_id, 5, '0', STR_PAD_LEFT);
+  }
 
   // ── 2. Upload photos permis sur GCP ───────────────────────────────────────
   $gcp_bucket = 'madi_bucket';
@@ -274,6 +372,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
   }
 
   $caution_str = CAUTION_MONTANT . ' €';
+  $pdf_vehicule_row  = $link_mode ? '' : "<tr><td style=\"padding:4px 8px;background:#f9f9f9;width:40%;\">Véhicule loué</td><td style=\"padding:4px 8px;background:#f9f9f9;\">{$vehicule}</td></tr>";
+  $pdf_empreinte_row = $link_mode ? '' : "<tr><td style=\"padding:4px 8px;background:#f9f9f9;\">N° dossier empreinte</td><td style=\"padding:4px 8px;background:#f9f9f9;\">{$dossier_empreinte}</td></tr>";
 
   $pdf_html = <<<HTML
 <!DOCTYPE html>
@@ -306,12 +406,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
 
   <h3 style="color:#0077b6;font-size:13px;border-left:3px solid #0077b6;padding-left:8px;">Véhicule</h3>
   <table style="width:100%;border-collapse:collapse;margin-bottom:16px;font-size:13px;">
-    <tr><td style="padding:4px 8px;background:#f9f9f9;width:40%;">Véhicule loué</td>
-        <td style="padding:4px 8px;background:#f9f9f9;">{$vehicule}</td></tr>
+    {$pdf_vehicule_row}
     <tr><td style="padding:4px 8px;">Date de départ</td>
         <td style="padding:4px 8px;">{$date_debut} à {$heure_debut}</td></tr>
-    <tr><td style="padding:4px 8px;background:#f9f9f9;">N° dossier empreinte</td>
-        <td style="padding:4px 8px;background:#f9f9f9;">{$dossier_empreinte}</td></tr>
+    {$pdf_empreinte_row}
   </table>
 
   <div style="border:1px solid #ddd;padding:14px;margin-bottom:20px;font-size:11px;line-height:1.6;">
@@ -401,7 +499,9 @@ HTML;
   // ── 6. Mise à jour BDD avec les URLs GCP ──────────────────────────────────
   $upd = $db1->prepare("
         UPDATE nomadrive_contrats
-        SET url_contrat_pdf = :pdf, url_permis_recto = :pr, url_permis_verso = :pv
+        SET url_contrat_pdf = :pdf,
+            url_permis_recto = COALESCE(:pr, url_permis_recto),
+            url_permis_verso = COALESCE(:pv, url_permis_verso)
         WHERE id = :id
     ");
   $upd->execute([':pdf' => $url_pdf, ':pr' => $url_permis_r, ':pv' => $url_permis_v, ':id' => $contrat_id]);
@@ -411,7 +511,7 @@ HTML;
   $etat_avant_notes  = strip_tags(trim($_POST['etat_avant_notes'] ?? ''));
   $etat_avant_photos = json_decode($_POST['etat_avant_photos_json'] ?? '[]', true) ?: [];
 
-  if ($vehicule_id > 0) {
+  if ($vehicule_id > 0 && !$link_mode) {
     $already_open = $db1->prepare("SELECT id FROM nomadrive_dossiers WHERE vehicule_id = :vid AND statut = 'ouvert' LIMIT 1");
     $already_open->execute([':vid' => $vehicule_id]);
     if (!$already_open->fetch()) {
@@ -427,25 +527,98 @@ HTML;
     }
   }
 
-  // ── 7. Corps email HTML (léger, sans images inline) ───────────────────────
-  $email_body = "
-    <div style='font-family:Arial,sans-serif;color:#222;max-width:600px;margin:0 auto;padding:20px;'>
-      <div style='text-align:center;margin-bottom:20px;'>
-        <h1 style='color:#0077b6;margin:0;'>NOMADRIVE</h1>
-        <p style='color:#555;font-size:13px;'>2 place Guynemer, 06300 Nice</p>
-      </div>
-      <p>Bonjour <strong>{$nom_complet}</strong>,</p>
-      <p>Merci pour votre location chez NOMADRIVE. Vous trouverez en pièce jointe votre contrat de location signé (<strong>{$contrat_ref}</strong>).</p>
-      <table style='width:100%;border-collapse:collapse;margin:16px 0;font-size:13px;'>
-        <tr><td style='padding:5px 8px;background:#f0f8ff;width:40%;font-weight:bold;'>Véhicule</td>
-            <td style='padding:5px 8px;background:#f0f8ff;'>{$vehicule}</td></tr>
-        <tr><td style='padding:5px 8px;'>Date de départ</td>
-            <td style='padding:5px 8px;'>{$date_debut} à {$heure_debut}</td></tr>
-      </table>
-      <p style='font-size:12px;color:#888;'>Ce document tient lieu de contrat signé électroniquement.</p>
-      <hr style='border:none;border-top:1px solid #eee;margin:16px 0;'/>
-      <p style='font-size:11px;color:#aaa;text-align:center;'>NICE ACTIVITY (NOMADRIVE) · SAS au capital de 100 000 € · RCS Nice 994 620 615 · contact@nomadrive.fr</p>
-    </div>";
+  // ── 7. Corps email HTML ───────────────────────────────────────────────────
+  $date_fr_email    = !empty($date_debut) ? (new DateTime($date_debut))->format('d/m/Y') : '';
+  $heure_str_email  = !empty($heure_debut) ? substr($heure_debut, 0, 5) : '';
+  $when_en_email    = $date_fr_email . ($heure_str_email ? ' at ' . $heure_str_email : '');
+  $when_fr_email    = $date_fr_email . ($heure_str_email ? ' à ' . $heure_str_email : '');
+  $first_name_html  = htmlspecialchars($prenom);
+  $email_v_row_en   = $link_mode ? '' : "<tr><td style='padding:6px 12px;color:#64748b;width:40%;'>Vehicle</td><td style='padding:6px 12px;'>" . htmlspecialchars($vehicule) . "</td></tr>";
+  $email_v_row_fr   = $link_mode ? '' : "<tr><td style='padding:6px 12px;color:#64748b;width:40%;'>V&eacute;hicule</td><td style='padding:6px 12px;'>" . htmlspecialchars($vehicule) . "</td></tr>";
+
+  $email_body = <<<HTML
+<!DOCTYPE html>
+<html>
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
+<body style="margin:0;padding:0;background:#f1f5f9;font-family:system-ui,-apple-system,sans-serif;">
+<table width="100%" cellpadding="0" cellspacing="0" style="background:#f1f5f9;padding:32px 0;">
+  <tr><td align="center">
+    <table width="600" cellpadding="0" cellspacing="0" style="max-width:600px;width:100%;background:#ffffff;border-radius:16px;overflow:hidden;">
+
+      <!-- Header -->
+      <tr>
+        <td style="background:#0f172a;padding:28px 40px;text-align:center;">
+          <img src="https://nomadrive.fr/images/logo_nomadrive.jpg" alt="NOMADRIVE" width="180" style="display:block;margin:0 auto;max-width:180px;height:auto;">
+          <div style="font-size:22px;font-weight:800;color:#ffffff;letter-spacing:3px;margin-top:14px;">NOMADRIVE</div>
+          <div style="font-size:12px;color:#64748b;margin-top:4px;letter-spacing:1px;">NICE &middot; C&Ocirc;TE D'AZUR</div>
+        </td>
+      </tr>
+
+      <!-- Body EN -->
+      <tr>
+        <td style="padding:40px 40px 8px;">
+          <p style="margin:0 0 12px;font-size:18px;font-weight:700;color:#0f172a;">Contract confirmed, {$first_name_html}!</p>
+          <p style="margin:0 0 20px;font-size:15px;color:#334155;line-height:1.6;">Your NOMADRIVE rental contract for <strong>{$when_en_email}</strong> is signed. Find it attached as a PDF.</p>
+          <table cellpadding="0" cellspacing="0" style="width:100%;margin:0 0 20px;border-collapse:collapse;font-size:13px;">
+            <tr style="background:#f8fafc;">
+              <td style="padding:6px 12px;color:#64748b;width:40%;">Contract ref.</td>
+              <td style="padding:6px 12px;">{$contrat_ref}</td>
+            </tr>
+            <tr>
+              <td style="padding:6px 12px;color:#64748b;">Date</td>
+              <td style="padding:6px 12px;">{$when_en_email}</td>
+            </tr>
+            {$email_v_row_en}
+          </table>
+          <p style="margin:0;font-size:13px;color:#94a3b8;">Questions? <a href="mailto:contact@nomadrive.fr" style="color:#0077b6;">contact@nomadrive.fr</a></p>
+        </td>
+      </tr>
+
+      <!-- Separator -->
+      <tr>
+        <td style="padding:24px 40px;">
+          <div style="border-top:1px solid #e2e8f0;"></div>
+          <p style="text-align:center;font-size:11px;color:#94a3b8;margin:16px 0;">&mdash; Version fran&ccedil;aise ci-dessous &mdash;</p>
+          <div style="border-top:1px solid #e2e8f0;"></div>
+        </td>
+      </tr>
+
+      <!-- Body FR -->
+      <tr>
+        <td style="padding:0 40px 40px;">
+          <p style="margin:0 0 12px;font-size:18px;font-weight:700;color:#0f172a;">Contrat confirm&eacute;, {$first_name_html}&nbsp;!</p>
+          <p style="margin:0 0 20px;font-size:15px;color:#334155;line-height:1.6;">Votre contrat de location NOMADRIVE pour le <strong>{$when_fr_email}</strong> est sign&eacute;. Vous le trouverez en pi&egrave;ce jointe au format PDF.</p>
+          <table cellpadding="0" cellspacing="0" style="width:100%;margin:0 0 20px;border-collapse:collapse;font-size:13px;">
+            <tr style="background:#f8fafc;">
+              <td style="padding:6px 12px;color:#64748b;width:40%;">R&eacute;f. contrat</td>
+              <td style="padding:6px 12px;">{$contrat_ref}</td>
+            </tr>
+            <tr>
+              <td style="padding:6px 12px;color:#64748b;">Date</td>
+              <td style="padding:6px 12px;">{$when_fr_email}</td>
+            </tr>
+            {$email_v_row_fr}
+          </table>
+          <p style="margin:0;font-size:13px;color:#94a3b8;">Une question ? <a href="mailto:contact@nomadrive.fr" style="color:#0077b6;">contact@nomadrive.fr</a></p>
+        </td>
+      </tr>
+
+      <!-- Footer -->
+      <tr>
+        <td style="background:#f8fafc;padding:24px 40px;border-top:1px solid #e2e8f0;">
+          <p style="margin:0;font-size:11px;color:#94a3b8;text-align:center;line-height:1.8;">
+            NICE ACTIVITY (NOMADRIVE) &middot; SAS au capital de 100 000 &euro; &middot; RCS Nice 994 620 615<br>
+            2 Place Guynemer, 06300 Nice &middot; <a href="mailto:contact@nomadrive.fr" style="color:#64748b;">contact@nomadrive.fr</a> &middot; <a href="https://nomadrive.fr" style="color:#64748b;">nomadrive.fr</a>
+          </p>
+        </td>
+      </tr>
+
+    </table>
+  </td></tr>
+</table>
+</body>
+</html>
+HTML;
 
   // ── 8. Envoi Sarbacane SMTP ───────────────────────────────────────────────
   $sent = false;
@@ -464,7 +637,7 @@ HTML;
 
     $mail->setFrom('contact@nomadrive.fr', 'NOMADRIVE');
     $mail->addReplyTo('contact@nomadrive.fr', 'NOMADRIVE');
-    $mail->addAddress($email, $nom_complet);
+    $mail->addAddress(MAIL_TEST_OVERRIDE ?? $email, $nom_complet);
     $mail->addCC('contact@nomadrive.fr', 'NOMADRIVE');
 
     $mail->isHTML(true);
@@ -501,6 +674,24 @@ HTML;
       : "Erreur d'envoi : $send_error",
   ]);
   exit;
+}
+
+// ─── Variables de rendu HTML ──────────────────────────────────────────────────
+$step3_label = $link_mode ? 'Caution' : 'État avant';
+$initial_step = 1;
+$stripe_caution_cancelled = false;
+if ($link_mode) {
+  $cp = $_GET['caution'] ?? null;
+  if ($cp === 'ok') {
+    $initial_step = 4;
+  } elseif ($cp === 'cancel') {
+    $initial_step = 3;
+    $stripe_caution_cancelled = true;
+  } else {
+    $scChk = $db1->prepare("SELECT id FROM nomadrive_stripe_cautions WHERE contrat_id=? AND status IN ('authorized','captured') ORDER BY id DESC LIMIT 1");
+    $scChk->execute([$link_cid]);
+    if ($scChk->fetchColumn()) $initial_step = 4;
+  }
 }
 ?>
 <!DOCTYPE html>
@@ -1233,12 +1424,15 @@ HTML;
         <div class="logo">NOMADRIVE</div>
         <div class="subtitle">Contrat de location</div>
       </div>
+      <?php if (!$link_mode): ?>
       <a href="dashboard.php" style="font-size:13px;color:var(--muted);text-decoration:none;display:flex;align-items:center;gap:6px;">
         <i class="fa-solid fa-gauge"></i> Dashboard
       </a>
+      <?php endif; ?>
     </header>
 
     <!-- ═══ PLANNING DU JOUR ═══════════════════════════════════════════════════ -->
+    <?php if (!$link_mode): ?>
     <div class="plan-panel" id="plan-panel">
       <div class="plan-header">
         <div class="plan-title">
@@ -1309,6 +1503,7 @@ HTML;
         <?php endforeach; ?>
       </div>
     </div>
+    <?php endif; ?>
 
     <!-- Barre de progression -->
     <div class="progress-wrap">
@@ -1323,7 +1518,7 @@ HTML;
         </div>
         <div class="step" id="step-3">
           <div class="step-dot">3</div>
-          <div class="step-label">État avant</div>
+          <div class="step-label"><?= htmlspecialchars($step3_label) ?></div>
         </div>
         <div class="step" id="step-4">
           <div class="step-dot">4</div>
@@ -1347,17 +1542,24 @@ HTML;
           Informations du locataire
         </div>
         <div class="form-grid">
+          <?php if ($link_mode): ?>
+          <input type="hidden" id="link_cid" value="<?= $link_cid ?>">
+          <input type="hidden" id="link_token" value="<?= htmlspecialchars($link_token) ?>">
+          <?php endif; ?>
           <div class="form-group">
             <label for="nom">Nom *</label>
-            <input type="text" id="nom" placeholder="DUPONT" autocomplete="family-name" autocapitalize="words">
+            <input type="text" id="nom" placeholder="DUPONT" autocomplete="family-name" autocapitalize="words"
+              value="<?= $link_mode ? htmlspecialchars($link_data['nom']) : '' ?>">
           </div>
           <div class="form-group">
             <label for="prenom">Prénom *</label>
-            <input type="text" id="prenom" placeholder="Sophie" autocomplete="given-name" autocapitalize="words">
+            <input type="text" id="prenom" placeholder="Sophie" autocomplete="given-name" autocapitalize="words"
+              value="<?= $link_mode ? htmlspecialchars($link_data['prenom']) : '' ?>">
           </div>
           <div class="form-group full">
             <label for="email">Email *</label>
-            <input type="email" id="email" placeholder="sophie.dupont@email.com" autocomplete="email" inputmode="email">
+            <input type="email" id="email" placeholder="sophie.dupont@email.com" autocomplete="email" inputmode="email"
+              value="<?= $link_mode ? htmlspecialchars($link_data['email']) : '' ?>">
           </div>
           <div class="form-group full">
             <label for="adresse">Adresse</label>
@@ -1366,6 +1568,11 @@ HTML;
         </div>
       </div>
 
+      <?php if ($link_mode): ?>
+      <input type="hidden" id="vehicule" value="<?= (int)$link_data['vehicule_id'] ?>">
+      <input type="hidden" id="date_debut" value="<?= htmlspecialchars($link_data['date_debut'] ?? '') ?>">
+      <input type="hidden" id="heure_debut" value="<?= htmlspecialchars($link_data['heure_debut'] ?? '') ?>">
+      <?php else: ?>
       <div class="card">
         <div class="card-title">
           <i class="fa-duotone fa-solid fa-car-side"></i>
@@ -1394,6 +1601,7 @@ HTML;
           </div>
         </div>
       </div>
+      <?php endif; ?>
 
       <button class="btn btn-primary" onclick="goToStep2()">
         Continuer — Photo du permis
@@ -1406,6 +1614,7 @@ HTML;
   ════════════════════════════════════════════════════════════ -->
     <div class="screen" id="screen-2">
 
+      <?php if (!$link_mode): ?>
       <div class="card">
         <div class="card-title">
           <i class="fa-duotone fa-solid fa-credit-card"></i>
@@ -1425,6 +1634,7 @@ HTML;
           <input type="text" id="dossier_empreinte" placeholder="ex : 240311-001" autocomplete="off">
         </div>
       </div>
+      <?php endif; ?>
 
       <div class="card">
         <div class="card-title">
@@ -1460,18 +1670,70 @@ HTML;
 
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px;">
         <button class="btn btn-secondary" onclick="goToStep(1)"><i class="fa-solid fa-arrow-left"></i> Retour</button>
+        <?php if ($link_mode): ?>
+        <button class="btn btn-primary" onclick="goToStep(3)">
+          Continuer <i class="fa-solid fa-arrow-right"></i>
+        </button>
+        <?php else: ?>
         <button class="btn btn-primary" onclick="goToStep3()">
           État du véhicule <i class="fa-solid fa-arrow-right"></i>
         </button>
+        <?php endif; ?>
       </div>
       <p style="text-align:center;font-size:12px;color:var(--muted);">Les photos du permis sont facultatives mais recommandées.</p>
     </div>
 
     <!-- ═══════════════════════════════════════════════════════════
-       ÉCRAN 3 — État des lieux avant (secrétaire)
+       ÉCRAN 3 — Caution (client) ou État des lieux avant (opérateur)
   ════════════════════════════════════════════════════════════ -->
     <div class="screen" id="screen-3">
 
+      <?php if ($link_mode): ?>
+
+      <!-- ─── Mode client : pré-autorisation caution Stripe ─── -->
+      <div class="card" style="text-align:center;padding:32px 24px;">
+        <div style="width:64px;height:64px;border-radius:50%;background:#e8f4fd;display:flex;align-items:center;justify-content:center;margin:0 auto 18px;">
+          <i class="fa-solid fa-shield-check" style="font-size:28px;color:var(--blue);"></i>
+        </div>
+        <h2 style="font-size:18px;margin-bottom:10px;">Pré-autorisation caution</h2>
+        <p style="font-size:14px;color:var(--muted);margin-bottom:6px;">
+          Un montant de <strong><?= CAUTION_MONTANT ?> €</strong> sera pré-autorisé sur votre carte bancaire.
+        </p>
+        <p style="font-size:13px;color:var(--muted);">
+          Aucun débit immédiat — la somme est simplement bloquée et libérée intégralement à la fin du tour si tout se passe bien.
+        </p>
+      </div>
+
+      <div style="background:#fff3cd;border:1px solid #ffc107;border-radius:10px;padding:14px 16px;margin-bottom:16px;font-size:13px;color:#856404;line-height:1.6;">
+        <strong>Important :</strong> Si vous n'effectuez pas cette pré-autorisation en ligne, un dépôt de <strong>500 €</strong> sera demandé sur place.
+        Seules les <strong>cartes physiques</strong> sont acceptées (pas Apple Pay / Google Pay).
+        Votre <strong>permis physique</strong> sera également exigé.
+      </div>
+
+      <button class="btn btn-primary" onclick="proceedToStripe()" id="btn-proceed-stripe">
+        <i class="fa-solid fa-lock"></i>
+        Pré-autoriser <?= CAUTION_MONTANT ?> € — Stripe
+      </button>
+
+      <button class="btn btn-secondary" style="margin-top:10px;" onclick="goToStep4()">
+        Passer — je réglerai sur place
+      </button>
+
+      <?php if ($stripe_caution_cancelled): ?>
+      <div style="background:#fee2e2;border:1px solid #fca5a5;border-radius:8px;padding:12px 14px;margin-top:14px;font-size:13px;color:#991b1b;">
+        La pré-autorisation a été annulée. Vous pouvez réessayer ci-dessus.
+      </div>
+      <?php endif; ?>
+
+      <div style="margin-top:14px;">
+        <button class="btn btn-secondary" onclick="goToStep(2)">
+          <i class="fa-solid fa-arrow-left"></i> Retour
+        </button>
+      </div>
+
+      <?php else: ?>
+
+      <!-- ─── Mode opérateur : état des lieux avant ─── -->
       <!-- Historique dernière location -->
       <div id="etat-avant-history" style="display:none"></div>
 
@@ -1506,6 +1768,8 @@ HTML;
         </button>
       </div>
       <p style="text-align:center;font-size:12px;color:var(--muted);">Le kilométrage et les photos sont facultatifs.</p>
+
+      <?php endif; ?>
     </div>
 
     <!-- ═══════════════════════════════════════════════════════════
@@ -1529,18 +1793,22 @@ HTML;
             <td style="padding:5px 0;color:var(--muted);width:45%;">Locataire</td>
             <td style="font-weight:600;" id="recap-nom"></td>
           </tr>
+          <?php if (!$link_mode): ?>
           <tr>
             <td style="padding:5px 0;color:var(--muted);">Véhicule</td>
             <td id="recap-vehicule"></td>
           </tr>
+          <?php endif; ?>
           <tr>
             <td style="padding:5px 0;color:var(--muted);">Date</td>
             <td id="recap-debut"></td>
           </tr>
+          <?php if (!$link_mode): ?>
           <tr>
             <td style="padding:5px 0;color:var(--muted);">N° empreinte</td>
             <td id="recap-heures"></td>
           </tr>
+          <?php endif; ?>
         </table>
       </div>
 
@@ -1686,9 +1954,11 @@ HTML;
           style="margin-top:28px;padding:16px;background:var(--gray);border-radius:10px;font-size:13px;color:var(--muted);">
           Bonne location avec NOMADRIVE !
         </div>
+        <?php if (!$link_mode): ?>
         <button class="btn btn-secondary" style="margin-top:20px;" onclick="resetForm()">
           Nouveau contrat
         </button>
+        <?php endif; ?>
       </div>
     </div>
 
@@ -1713,6 +1983,12 @@ HTML;
     // ─────────────────────────────────────────────────────────────────────────────
     // HISTORIQUE VÉHICULES (dernier dossier fermé par véhicule)
     const lastDossiers = <?= json_encode($last_dossiers) ?>;
+
+    // Variables PHP injectées
+    const linkMode        = <?= $link_mode ? 'true' : 'false' ?>;
+    const linkCidVal      = <?= (int)$link_cid ?>;
+    const linkTokenVal    = <?= json_encode($link_token) ?>;
+    const linkVehicule    = <?= json_encode($link_mode ? ($link_data['vehicule'] ?? '') : '') ?>;
 
     // STATE
     // ─────────────────────────────────────────────────────────────────────────────
@@ -1794,7 +2070,7 @@ HTML;
       const prenom = document.getElementById('prenom').value.trim();
       const nom    = document.getElementById('nom').value.trim();
       const vehiculeSel  = document.getElementById('vehicule');
-      const vehiculeText = vehiculeSel.options[vehiculeSel.selectedIndex]?.text || '—';
+      const vehiculeText = linkVehicule || vehiculeSel?.options?.[vehiculeSel.selectedIndex]?.text || vehiculeSel?.value || '—';
       const debut = document.getElementById('date_debut').value;
       const hd    = document.getElementById('heure_debut').value;
 
@@ -1802,7 +2078,9 @@ HTML;
       document.getElementById('recap-nom').textContent      = (prenom + ' ' + nom).trim();
       document.getElementById('recap-vehicule').textContent = vehiculeText;
       document.getElementById('recap-debut').textContent    = debut ? `${formatDate(debut)} à ${hd}` : '—';
-      document.getElementById('recap-heures').textContent   = document.getElementById('dossier_empreinte').value.trim() || '—';
+      const empreinteEl = document.getElementById('dossier_empreinte');
+      const recapHeures = document.getElementById('recap-heures');
+      if (recapHeures) recapHeures.textContent = empreinteEl?.value?.trim() || '—';
 
       goToStep(4);
     }
@@ -1866,7 +2144,9 @@ HTML;
 
     // Fallback file inputs
     ['recto', 'verso', 'empreinte', 'etat_avant'].forEach(side => {
-      document.getElementById('file-' + side).addEventListener('change', function () {
+      const fileEl = document.getElementById('file-' + side);
+      if (!fileEl) return;
+      fileEl.addEventListener('change', function () {
         const file = this.files[0];
         if (!file) return;
         state.currentPhotoTarget = side;
@@ -1983,14 +2263,17 @@ HTML;
       payload.append('vehicule', document.getElementById('vehicule').value);
       payload.append('date_debut', document.getElementById('date_debut').value);
       payload.append('heure_debut', document.getElementById('heure_debut').value);
-      payload.append('dossier_empreinte', document.getElementById('dossier_empreinte').value.trim());
+      payload.append('dossier_empreinte', document.getElementById('dossier_empreinte')?.value?.trim() || '');
       payload.append('signature', state.signaturePad.toDataURL('image/png'));
       payload.append('permis_recto', state.permisRecto || '');
       payload.append('permis_verso', state.permisVerso || '');
       payload.append('empreinte_photo', state.empreintePhoto || '');
-      payload.append('etat_avant_km', document.getElementById('etat-avant-km').value || '0');
-      payload.append('etat_avant_notes', document.getElementById('etat-avant-notes').value.trim());
+      payload.append('etat_avant_km', document.getElementById('etat-avant-km')?.value || '0');
+      payload.append('etat_avant_notes', document.getElementById('etat-avant-notes')?.value?.trim() || '');
       payload.append('etat_avant_photos_json', JSON.stringify(state.etatAvantPhotos));
+      const linkCid   = document.getElementById('link_cid')?.value || '';
+      const linkToken = document.getElementById('link_token')?.value || '';
+      if (linkCid) { payload.append('link_cid', linkCid); payload.append('link_token', linkToken); }
 
       try {
         const resp = await fetch('contrat.php', { method: 'POST', body: payload });
@@ -2033,12 +2316,16 @@ HTML;
       state.permisRecto = state.permisVerso = state.empreintePhoto = null;
       state.etatAvantPhotos = [];
       ['recto', 'verso', 'empreinte'].forEach(s => {
-        document.getElementById('photo-' + s).classList.remove('has-photo');
-        document.getElementById('img-' + s).src = '';
+        const ph = document.getElementById('photo-' + s);
+        const im = document.getElementById('img-' + s);
+        if (ph) ph.classList.remove('has-photo');
+        if (im) im.src = '';
       });
       renderEtatAvantGrid();
-      document.getElementById('etat-avant-km').value = '';
-      document.getElementById('etat-avant-notes').value = '';
+      const kmEl = document.getElementById('etat-avant-km');
+      const notesEl = document.getElementById('etat-avant-notes');
+      if (kmEl) kmEl.value = '';
+      if (notesEl) notesEl.value = '';
 
       // Reset signature
       if (state.signaturePad) state.signaturePad.clear();
@@ -2060,6 +2347,27 @@ HTML;
       t.classList.add('show');
       clearTimeout(toastTimer);
       toastTimer = setTimeout(() => t.classList.remove('show'), 3800);
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────────
+    // CAUTION STRIPE (link_mode)
+    // ─────────────────────────────────────────────────────────────────────────────
+    async function proceedToStripe() {
+      const btn = document.getElementById('btn-proceed-stripe');
+      if (btn) { btn.disabled = true; btn.innerHTML = '<div class="spinner"></div> Préparation…'; }
+
+      // Sauvegarde les photos permis avant de quitter la page
+      if (state.permisRecto || state.permisVerso) {
+        const fd = new FormData();
+        fd.append('action', 'save_permis');
+        fd.append('link_cid', linkCidVal);
+        fd.append('link_token', linkTokenVal);
+        fd.append('permis_recto', state.permisRecto || '');
+        fd.append('permis_verso', state.permisVerso || '');
+        try { await fetch('contrat.php', { method: 'POST', body: fd }); } catch (_) {}
+      }
+
+      window.location.href = 'contrat.php?cid=' + linkCidVal + '&token=' + encodeURIComponent(linkTokenVal) + '&action=stripe_redirect';
     }
 
     // ─────────────────────────────────────────────────────────────────────────────
@@ -2159,9 +2467,22 @@ HTML;
     // INIT — date par défaut = aujourd'hui
     // ─────────────────────────────────────────────────────────────────────────────
     (function () {
-      const now = new Date();
-      document.getElementById('date_debut').value = now.toISOString().split('T')[0];
-      document.getElementById('heure_debut').value = now.toTimeString().slice(0, 5);
+      const dateEl  = document.getElementById('date_debut');
+      const heureEl = document.getElementById('heure_debut');
+      if (dateEl && !dateEl.value) {
+        const now = new Date();
+        dateEl.value  = now.toISOString().split('T')[0];
+        if (heureEl) heureEl.value = now.toTimeString().slice(0, 5);
+      }
+
+      // Positionnement initial (retour Stripe ou caution déjà autorisée)
+      const initialStep = <?= (int)$initial_step ?>;
+      if (initialStep === 4) goToStep4();
+      else if (initialStep > 1) goToStep(initialStep);
+
+      <?php if ($stripe_caution_cancelled): ?>
+      showToast('La pré-autorisation a été annulée. Vous pouvez réessayer.');
+      <?php endif; ?>
     })();
   </script>
 </body>

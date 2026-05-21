@@ -9,6 +9,7 @@ if (!is_dir($madiDir))
 require_once $madiDir . '/vendor/autoload.php';
 require_once $madiDir . '/php/fonctions.php';
 require_once $madiDir . '/php/config.php';
+require_once __DIR__ . '/config.php';
 $db1->query("SET NAMES 'utf8mb4'");
 
 require_once __DIR__ . '/nomadrive_auth.php';
@@ -89,6 +90,62 @@ if ($action === 'save_etat_avant') {
   exit;
 }
 
+if ($action === 'open_dossier') {
+  requireAuth($db1);
+  header('Content-Type: application/json');
+  $contrat_id  = (int)($_POST['contrat_id'] ?? 0);
+  $vehicule_id = (int)($_POST['vehicule_id'] ?? 0);
+  if (!$contrat_id || !$vehicule_id) {
+    echo json_encode(['success' => false, 'message' => 'Paramètres manquants']);
+    exit;
+  }
+  $existing = $db1->prepare("SELECT id FROM nomadrive_dossiers WHERE contrat_id = ? AND statut = 'ouvert' LIMIT 1");
+  $existing->execute([$contrat_id]);
+  if ($existing->fetchColumn()) {
+    echo json_encode(['success' => false, 'message' => 'Un dossier ouvert existe déjà pour ce contrat']);
+    exit;
+  }
+  $veh = $db1->prepare("SELECT id, marque, modele, immatriculation FROM nomadrive_vehicules WHERE id = ? AND actif = 1");
+  $veh->execute([$vehicule_id]);
+  $v = $veh->fetch(PDO::FETCH_ASSOC);
+  if (!$v) {
+    echo json_encode(['success' => false, 'message' => 'Véhicule introuvable']);
+    exit;
+  }
+  $label = '#' . $v['id'] . ' — ' . $v['marque'] . ' ' . $v['modele'] . ' — ' . $v['immatriculation'];
+  $db1->prepare("UPDATE nomadrive_contrats SET vehicule_id = ?, vehicule = ? WHERE id = ?")
+      ->execute([$vehicule_id, $label, $contrat_id]);
+  $db1->prepare("INSERT INTO nomadrive_dossiers (contrat_id, vehicule_id, statut, created_at) VALUES (?, ?, 'ouvert', NOW())")
+      ->execute([$contrat_id, $vehicule_id]);
+  $dossier_id = (int)$db1->lastInsertId();
+  echo json_encode(['success' => true, 'dossier_id' => $dossier_id]);
+  exit;
+}
+
+if ($action === 'change_vehicule') {
+  requireAuth($db1);
+  header('Content-Type: application/json');
+  $did        = (int)($_POST['dossier_id'] ?? 0);
+  $new_vid    = (int)($_POST['vehicule_id'] ?? 0);
+  if (!$did || !$new_vid) {
+    echo json_encode(['success' => false, 'message' => 'Paramètres manquants']);
+    exit;
+  }
+  $dos = $db1->query("SELECT d.id, d.contrat_id, d.statut FROM nomadrive_dossiers d WHERE d.id = $did AND d.statut = 'ouvert'")->fetch(PDO::FETCH_ASSOC);
+  if (!$dos) { echo json_encode(['success' => false, 'message' => 'Dossier introuvable ou déjà clôturé']); exit; }
+
+  $veh = $db1->prepare("SELECT id, marque, modele, immatriculation FROM nomadrive_vehicules WHERE id = ? AND actif = 1");
+  $veh->execute([$new_vid]);
+  $v = $veh->fetch(PDO::FETCH_ASSOC);
+  if (!$v) { echo json_encode(['success' => false, 'message' => 'Véhicule introuvable']); exit; }
+
+  $label = '#' . $v['id'] . ' — ' . $v['marque'] . ' ' . $v['modele'] . ' — ' . $v['immatriculation'];
+  $db1->prepare("UPDATE nomadrive_dossiers SET vehicule_id = ? WHERE id = ?")->execute([$new_vid, $did]);
+  $db1->prepare("UPDATE nomadrive_contrats SET vehicule_id = ?, vehicule = ? WHERE id = ?")->execute([$new_vid, $label, $dos['contrat_id']]);
+  echo json_encode(['success' => true, 'vehicule' => $label]);
+  exit;
+}
+
 if ($action === 'save_etat_apres') {
   requireAuth($db1);
   header('Content-Type: application/json');
@@ -113,68 +170,173 @@ if ($action === 'save_etat_apres') {
   $db1->prepare("UPDATE nomadrive_dossiers SET etat_apres_km=:km, etat_apres_notes=:n, etat_apres_photos=:p, etat_apres_at=NOW(), caution_liberee=:cl, caution_retenu=:cr, caution_note=:cn, statut='ferme', closed_at=NOW() WHERE id=:id")
       ->execute([':km' => $km, ':n' => $notes, ':p' => json_encode($urls), ':cl' => $caution_lib, ':cr' => $caution_ret > 0 ? $caution_ret : null, ':cn' => $caution_note, ':id' => $did]);
 
-  // ── Email de clôture au client ─────────────────────────────────────────────
-  $envFile = $madiDir . '/.env';
-  if (!file_exists($envFile)) $envFile = __DIR__ . '/.env';
-  if (file_exists($envFile)) {
-    foreach (file($envFile, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES) as $line) {
-      if ($line[0] === '#' || strpos($line, '=') === false) continue;
-      [$k, $v] = explode('=', $line, 2);
-      $_ENV[trim($k)] = trim($v);
+  // ── Stripe : capture ou annulation automatique à la clôture ───────────────
+  $stmtCaut = $db1->prepare("SELECT * FROM nomadrive_stripe_cautions WHERE contrat_id = ? AND status = 'authorized' ORDER BY id DESC LIMIT 1");
+  $stmtCaut->execute([$dos['contrat_id']]);
+  $activeCaution = $stmtCaut->fetch(PDO::FETCH_ASSOC);
+  if ($activeCaution && $activeCaution['stripe_payment_intent_id']) {
+    $stripeKey = STRIPE_MODE === 'live' ? STRIPE_LIVE_SECRET_KEY : STRIPE_TEST_SECRET_KEY;
+    \Stripe\Stripe::setApiKey($stripeKey);
+    try {
+      $pi = \Stripe\PaymentIntent::retrieve($activeCaution['stripe_payment_intent_id']);
+      if ($caution_lib) {
+        $pi->cancel();
+        $db1->prepare("UPDATE nomadrive_stripe_cautions SET status='canceled', updated_at=NOW() WHERE id=?")
+            ->execute([$activeCaution['id']]);
+      } else {
+        $capture_cents = min((int)round($caution_ret * 100), (int)$activeCaution['amount']);
+        if ($capture_cents > 0) {
+          $pi->capture(['amount_to_capture' => $capture_cents]);
+          $db1->prepare("UPDATE nomadrive_stripe_cautions SET status='captured', updated_at=NOW() WHERE id=?")
+              ->execute([$activeCaution['id']]);
+        }
+      }
+    } catch (\Stripe\Exception\ApiErrorException $e) {
+      // Stripe échoue : on ne bloque pas la clôture, mais on log
+      error_log('[NOMADRIVE] Stripe error on close dossier ' . $did . ': ' . $e->getMessage());
     }
   }
+
+  // ── Email de clôture au client ─────────────────────────────────────────────
 
   $km_avant   = (int)($dos['etat_avant_km'] ?? 0);
   $distance   = ($km > 0 && $km_avant > 0) ? ($km - $km_avant) : null;
   $nom_complet = htmlspecialchars($dos['prenom'] . ' ' . $dos['nom']);
-  $caution_html = $caution_lib
-    ? '<span style="color:#155724;font-weight:600">✅ Caution libérée intégralement</span>'
-    : '<span style="color:#721c24;font-weight:600">❌ Montant retenu : ' . ($caution_ret > 0 ? number_format($caution_ret, 0, '.', '') . ' €' : 'non précisé') . '</span>';
+  $date_fr_close    = !empty($dos['date_debut']) ? (new DateTime($dos['date_debut']))->format('d/m/Y') : '';
+  $heure_close      = !empty($dos['heure_debut']) ? substr($dos['heure_debut'], 0, 5) : '';
+  $when_en_close    = $date_fr_close . ($heure_close ? ' at ' . $heure_close : '');
+  $when_fr_close    = $date_fr_close . ($heure_close ? ' &agrave; ' . $heure_close : '');
+  $first_name_close = htmlspecialchars($dos['prenom']);
+  $vehicule_close   = htmlspecialchars($dos['vehicule'] ?? '');
+  $ref_close        = htmlspecialchars($dos['ref']);
 
-  $body = "
-  <div style='font-family:Arial,sans-serif;color:#222;max-width:600px;margin:0 auto;padding:20px;'>
-    <div style='text-align:center;margin-bottom:20px;'>
-      <h1 style='color:#0077b6;margin:0;'>NOMADRIVE</h1>
-      <p style='color:#555;font-size:13px;'>2 place Guynemer, 06300 Nice</p>
-    </div>
-    <p>Bonjour <strong>{$nom_complet}</strong>,</p>
-    <p>Votre location <strong>{$dos['ref']}</strong> est maintenant clôturée. Voici le récapitulatif :</p>
+  $caution_bg  = $caution_lib ? '#dcfce7' : '#fef3c7';
+  $caution_bd  = $caution_lib ? '#86efac' : '#fcd34d';
+  $caution_lbl_en = $caution_lib
+    ? 'Your security deposit has been fully released.'
+    : 'An amount of ' . ($caution_ret > 0 ? number_format((int)$caution_ret, 0, ',', ' ') . ' &euro;' : 'TBD') . ' has been retained.';
+  $caution_lbl_fr = $caution_lib
+    ? 'Votre caution a &eacute;t&eacute; int&eacute;gralement lib&eacute;r&eacute;e.'
+    : 'Un montant de ' . ($caution_ret > 0 ? number_format((int)$caution_ret, 0, ',', ' ') . ' &euro;' : 'non pr&eacute;cis&eacute;') . ' a &eacute;t&eacute; retenu.';
+  $note_caution_html = !empty($caution_note)
+    ? "<p style='margin:6px 0 0;font-size:12px;color:#555;'>" . htmlspecialchars($caution_note) . "</p>"
+    : '';
 
-    <table style='width:100%;border-collapse:collapse;margin:16px 0;font-size:13px;'>
-      <tr><td style='padding:5px 8px;background:#f0f8ff;width:40%;font-weight:bold;'>Véhicule</td>
-          <td style='padding:5px 8px;background:#f0f8ff;'>" . htmlspecialchars($dos['vehicule']) . "</td></tr>
-      <tr><td style='padding:5px 8px;'>Départ</td>
-          <td style='padding:5px 8px;'>" . htmlspecialchars($dos['date_debut'] ?? '—') . " à " . htmlspecialchars($dos['heure_debut'] ?? '—') . "</td></tr>
-      " . ($km_avant > 0 ? "<tr><td style='padding:5px 8px;background:#f0f8ff;'>Km départ</td><td style='padding:5px 8px;background:#f0f8ff;'>" . number_format($km_avant, 0, '.', ' ') . " km</td></tr>" : '') . "
-      " . ($km > 0 ? "<tr><td style='padding:5px 8px;'>Km retour</td><td style='padding:5px 8px;'>" . number_format($km, 0, '.', ' ') . " km</td></tr>" : '') . "
-      " . ($distance !== null ? "<tr><td style='padding:5px 8px;background:#f0f8ff;'>Distance parcourue</td><td style='padding:5px 8px;background:#f0f8ff;'>" . number_format($distance, 0, '.', ' ') . " km</td></tr>" : '') . "
+  $km_rows_en = $km_rows_fr = '';
+  if ($km_avant > 0) {
+    $km_rows_en .= "<tr><td style='padding:6px 12px;color:#64748b;width:40%;'>Start km</td><td style='padding:6px 12px;'>" . number_format($km_avant, 0, ',', ' ') . " km</td></tr>";
+    $km_rows_fr .= "<tr><td style='padding:6px 12px;color:#64748b;width:40%;'>Km d&eacute;part</td><td style='padding:6px 12px;'>" . number_format($km_avant, 0, ',', ' ') . " km</td></tr>";
+  }
+  if ($km > 0) {
+    $km_rows_en .= "<tr style='background:#f8fafc;'><td style='padding:6px 12px;color:#64748b;'>End km</td><td style='padding:6px 12px;'>" . number_format($km, 0, ',', ' ') . " km</td></tr>";
+    $km_rows_fr .= "<tr style='background:#f8fafc;'><td style='padding:6px 12px;color:#64748b;'>Km retour</td><td style='padding:6px 12px;'>" . number_format($km, 0, ',', ' ') . " km</td></tr>";
+  }
+  if ($distance !== null) {
+    $km_rows_en .= "<tr><td style='padding:6px 12px;color:#64748b;'>Distance</td><td style='padding:6px 12px;'>" . number_format($distance, 0, ',', ' ') . " km</td></tr>";
+    $km_rows_fr .= "<tr><td style='padding:6px 12px;color:#64748b;'>Distance</td><td style='padding:6px 12px;'>" . number_format($distance, 0, ',', ' ') . " km</td></tr>";
+  }
+  $notes_row_en = !empty($notes) ? "<p style='margin:0 0 16px;font-size:13px;color:#334155;'><strong>Observations: </strong>" . htmlspecialchars($notes) . "</p>" : '';
+  $notes_row_fr = !empty($notes) ? "<p style='margin:0 0 16px;font-size:13px;color:#334155;'><strong>Observations retour : </strong>" . htmlspecialchars($notes) . "</p>" : '';
+
+  $body = <<<HTML
+<!DOCTYPE html>
+<html>
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
+<body style="margin:0;padding:0;background:#f1f5f9;font-family:system-ui,-apple-system,sans-serif;">
+<table width="100%" cellpadding="0" cellspacing="0" style="background:#f1f5f9;padding:32px 0;">
+  <tr><td align="center">
+    <table width="600" cellpadding="0" cellspacing="0" style="max-width:600px;width:100%;background:#ffffff;border-radius:16px;overflow:hidden;">
+      <tr>
+        <td style="background:#0f172a;padding:28px 40px;text-align:center;">
+          <img src="https://nomadrive.fr/images/logo_nomadrive.jpg" alt="NOMADRIVE" width="180" style="display:block;margin:0 auto;max-width:180px;height:auto;">
+          <div style="font-size:22px;font-weight:800;color:#ffffff;letter-spacing:3px;margin-top:14px;">NOMADRIVE</div>
+          <div style="font-size:12px;color:#64748b;margin-top:4px;letter-spacing:1px;">NICE &middot; C&Ocirc;TE D'AZUR</div>
+        </td>
+      </tr>
+      <tr>
+        <td style="padding:40px 40px 8px;">
+          <p style="margin:0 0 12px;font-size:18px;font-weight:700;color:#0f172a;">Thank you, {$first_name_close}!</p>
+          <p style="margin:0 0 20px;font-size:15px;color:#334155;line-height:1.6;">Your NOMADRIVE rental <strong>{$ref_close}</strong> is now complete. Here is your summary:</p>
+          <table cellpadding="0" cellspacing="0" style="width:100%;margin:0 0 16px;border-collapse:collapse;font-size:13px;">
+            <tr style="background:#f8fafc;">
+              <td style="padding:6px 12px;color:#64748b;width:40%;">Date</td>
+              <td style="padding:6px 12px;">{$when_en_close}</td>
+            </tr>
+            <tr>
+              <td style="padding:6px 12px;color:#64748b;">Vehicle</td>
+              <td style="padding:6px 12px;">{$vehicule_close}</td>
+            </tr>
+            {$km_rows_en}
+          </table>
+          {$notes_row_en}
+          <table cellpadding="0" cellspacing="0" style="width:100%;margin:0 0 8px;">
+            <tr><td style="padding:16px;background:{$caution_bg};border-radius:12px;border:1px solid {$caution_bd};font-size:13px;font-weight:700;color:#1e293b;">
+              {$caution_lbl_en}{$note_caution_html}
+            </td></tr>
+          </table>
+          <p style="margin:16px 0 0;font-size:13px;color:#94a3b8;">Questions? <a href="mailto:contact@nomadrive.fr" style="color:#0077b6;">contact@nomadrive.fr</a></p>
+        </td>
+      </tr>
+      <tr>
+        <td style="padding:24px 40px;">
+          <div style="border-top:1px solid #e2e8f0;"></div>
+          <p style="text-align:center;font-size:11px;color:#94a3b8;margin:16px 0;">&mdash; Version fran&ccedil;aise ci-dessous &mdash;</p>
+          <div style="border-top:1px solid #e2e8f0;"></div>
+        </td>
+      </tr>
+      <tr>
+        <td style="padding:0 40px 40px;">
+          <p style="margin:0 0 12px;font-size:18px;font-weight:700;color:#0f172a;">Merci, {$first_name_close}&nbsp;!</p>
+          <p style="margin:0 0 20px;font-size:15px;color:#334155;line-height:1.6;">Votre location NOMADRIVE <strong>{$ref_close}</strong> est maintenant cl&ocirc;tur&eacute;e. Voici votre r&eacute;capitulatif&nbsp;:</p>
+          <table cellpadding="0" cellspacing="0" style="width:100%;margin:0 0 16px;border-collapse:collapse;font-size:13px;">
+            <tr style="background:#f8fafc;">
+              <td style="padding:6px 12px;color:#64748b;width:40%;">Date</td>
+              <td style="padding:6px 12px;">{$when_fr_close}</td>
+            </tr>
+            <tr>
+              <td style="padding:6px 12px;color:#64748b;">V&eacute;hicule</td>
+              <td style="padding:6px 12px;">{$vehicule_close}</td>
+            </tr>
+            {$km_rows_fr}
+          </table>
+          {$notes_row_fr}
+          <table cellpadding="0" cellspacing="0" style="width:100%;margin:0 0 8px;">
+            <tr><td style="padding:16px;background:{$caution_bg};border-radius:12px;border:1px solid {$caution_bd};font-size:13px;font-weight:700;color:#1e293b;">
+              {$caution_lbl_fr}{$note_caution_html}
+            </td></tr>
+          </table>
+          <p style="margin:16px 0 0;font-size:13px;color:#94a3b8;">Une question ? <a href="mailto:contact@nomadrive.fr" style="color:#0077b6;">contact@nomadrive.fr</a></p>
+        </td>
+      </tr>
+      <tr>
+        <td style="background:#f8fafc;padding:24px 40px;border-top:1px solid #e2e8f0;">
+          <p style="margin:0;font-size:11px;color:#94a3b8;text-align:center;line-height:1.8;">
+            NICE ACTIVITY (NOMADRIVE) &middot; SAS au capital de 100 000 &euro; &middot; RCS Nice 994 620 615<br>
+            2 Place Guynemer, 06300 Nice &middot; <a href="mailto:contact@nomadrive.fr" style="color:#64748b;">contact@nomadrive.fr</a> &middot; <a href="https://nomadrive.fr" style="color:#64748b;">nomadrive.fr</a>
+          </p>
+        </td>
+      </tr>
     </table>
-
-    " . (!empty($notes) ? "<p style='font-size:13px;color:#555;'><strong>Observations retour :</strong> " . htmlspecialchars($notes) . "</p>" : '') . "
-
-    <div style='padding:14px;border-radius:8px;margin:16px 0;background:" . ($caution_lib ? '#d4edda' : '#f8d7da') . ";'>
-      {$caution_html}
-      " . (!empty($caution_note) ? "<p style='font-size:12px;margin:6px 0 0;'>" . htmlspecialchars($caution_note) . "</p>" : '') . "
-    </div>
-
-    <hr style='border:none;border-top:1px solid #eee;margin:16px 0;'/>
-    <p style='font-size:11px;color:#aaa;text-align:center;'>NICE ACTIVITY (NOMADRIVE) · SAS au capital de 100 000 € · RCS Nice 994 620 615 · contact@nomadrive.fr</p>
-  </div>";
+  </td></tr>
+</table>
+</body>
+</html>
+HTML;
 
   try {
     $mail = new PHPMailer\PHPMailer\PHPMailer(true);
     $mail->isSMTP();
     $mail->Host       = 'smtp-sendkit.sarbacane.com';
     $mail->SMTPAuth   = true;
-    $mail->Username   = $_ENV['SMTP_USERNAME'] ?? '';
-    $mail->Password   = $_ENV['SMTP_PASSWORD'] ?? '';
+    $mail->Username   = SMTP_USERNAME;
+    $mail->Password   = SMTP_PASSWORD;
     $mail->SMTPSecure = 'tls';
     $mail->Port       = 587;
     $mail->CharSet    = 'UTF-8';
     $mail->Encoding   = 'base64';
     $mail->setFrom('contact@nomadrive.fr', 'NOMADRIVE');
     $mail->addReplyTo('contact@nomadrive.fr', 'NOMADRIVE');
-    $mail->addAddress($dos['email'], $nom_complet);
+    $mail->addAddress(MAIL_TEST_OVERRIDE ?? $dos['email'], $nom_complet);
     $mail->addCC('contact@nomadrive.fr', 'NOMADRIVE');
     $mail->isHTML(true);
     $mail->Subject = "Fin de location NOMADRIVE — {$dos['ref']}";
@@ -215,6 +377,12 @@ if (in_array($view, ['etat_avant', 'etat_apres', 'dossier_detail'])) {
   }
 }
 
+// Véhicules disponibles pour le changement rapide (vue dossier_detail)
+$vehicules_dispo = [];
+if ($view === 'dossier_detail') {
+  $vehicules_dispo = $db1->query("SELECT id, marque, modele, immatriculation FROM nomadrive_vehicules WHERE actif = 1 AND guide = 0 ORDER BY immatriculation")->fetchAll(PDO::FETCH_ASSOC);
+}
+
 // Données pour la vue dossiers fermés
 $closed_all   = [];
 $closed_total = 0;
@@ -245,11 +413,17 @@ if ($view === 'dashboard') {
   $open_dossiers = $db1->query("
     SELECT d.*,
            CONCAT('ND-', LPAD(d.contrat_id,5,'0')) AS contrat_ref,
-           c.nom, c.prenom, c.date_debut, c.heure_debut,
-           v.marque, v.modele, v.immatriculation
+           c.nom, c.prenom, c.email, c.date_debut, c.heure_debut,
+           v.marque, v.modele, v.immatriculation,
+           sc.id          AS caution_id,
+           sc.status      AS caution_status,
+           sc.checkout_url AS caution_url,
+           sc.email_sent_at AS caution_sent_at
     FROM nomadrive_dossiers d
     JOIN nomadrive_contrats c ON c.id = d.contrat_id
     JOIN nomadrive_vehicules v ON v.id = d.vehicule_id
+    LEFT JOIN nomadrive_stripe_cautions sc ON sc.contrat_id = d.contrat_id
+      AND sc.id = (SELECT MAX(id) FROM nomadrive_stripe_cautions WHERE contrat_id = d.contrat_id)
     WHERE d.statut = 'ouvert'
     ORDER BY d.created_at DESC
   ")->fetchAll(PDO::FETCH_ASSOC);
@@ -271,6 +445,24 @@ if ($view === 'dashboard') {
     FROM nomadrive_vehicules v
     LEFT JOIN nomadrive_dossiers d ON d.vehicule_id = v.id AND d.statut = 'ouvert'
     ORDER BY v.id
+  ")->fetchAll(PDO::FETCH_ASSOC);
+
+  $vehicules_dispo = $db1->query("SELECT id, marque, modele, immatriculation FROM nomadrive_vehicules WHERE actif = 1 AND guide = 0 ORDER BY immatriculation")->fetchAll(PDO::FETCH_ASSOC);
+
+  $prefill_contracts = $db1->query("
+    SELECT c.id AS contrat_id, c.nom, c.prenom, c.email,
+           c.date_debut, c.heure_debut,
+           CONCAT('ND-', LPAD(c.id, 5, '0')) AS ref,
+           sc.status AS caution_status,
+           c.url_permis_recto IS NOT NULL AS has_permis,
+           c.url_contrat_pdf  IS NOT NULL AS has_pdf
+    FROM nomadrive_contrats c
+    LEFT JOIN nomadrive_dossiers d ON d.contrat_id = c.id AND d.statut = 'ouvert'
+    LEFT JOIN nomadrive_stripe_cautions sc ON sc.contrat_id = c.id
+      AND sc.id = (SELECT MAX(id) FROM nomadrive_stripe_cautions WHERE contrat_id = c.id)
+    WHERE c.signature IS NOT NULL
+      AND d.id IS NULL
+    ORDER BY c.date_debut ASC, c.heure_debut ASC
   ")->fetchAll(PDO::FETCH_ASSOC);
 }
 ?>
@@ -966,10 +1158,24 @@ if ($view === 'dashboard') {
 
       <div class="card" style="background:linear-gradient(135deg,#e8f4fd,#f0f9ff);border-color:#b3d9f5;">
         <strong><?= htmlspecialchars($d['prenom'] . ' ' . $d['nom']) ?></strong>
-        &nbsp;·&nbsp; <?= htmlspecialchars($d['marque'] . ' ' . $d['modele'] . ' — ' . $d['immatriculation']) ?>
+        &nbsp;·&nbsp; <span id="vehicule-label"><?= htmlspecialchars($d['marque'] . ' ' . $d['modele'] . ' — ' . $d['immatriculation']) ?></span>
         &nbsp;·&nbsp; <?= htmlspecialchars($d['date_debut'] ?? '—') ?> <?= htmlspecialchars($d['heure_debut'] ?? '') ?>
         <?php if (!$is_open && $d['closed_at']): ?>
           &nbsp;·&nbsp; <span style="color:var(--muted)">Fermé le <?= date('d/m/Y à H:i', strtotime($d['closed_at'])) ?></span>
+        <?php endif; ?>
+        <?php if ($is_open && $vehicules_dispo): ?>
+        <div style="display:flex;gap:8px;align-items:center;margin-top:12px;flex-wrap:wrap;">
+          <select id="select-vehicule" style="flex:1;min-width:0;padding:8px 10px;border-radius:8px;border:1px solid var(--border);font-size:13px;background:#fff;">
+            <?php foreach ($vehicules_dispo as $v): ?>
+              <option value="<?= (int)$v['id'] ?>" <?= (int)$v['id'] === (int)$d['vehicule_id'] ? 'selected' : '' ?>>
+                <?= htmlspecialchars($v['marque'] . ' ' . $v['modele'] . ' — ' . $v['immatriculation']) ?>
+              </option>
+            <?php endforeach; ?>
+          </select>
+          <button class="btn btn-primary btn-sm" onclick="changeVehicule(<?= (int)$d['id'] ?>)" style="white-space:nowrap;">
+            <i class="fa-solid fa-rotate"></i> Changer
+          </button>
+        </div>
         <?php endif; ?>
       </div>
 
@@ -1245,6 +1451,68 @@ if ($view === 'dashboard') {
         <?php endif; ?>
       </div>
 
+      <!-- Contrats pré-remplis en attente d'arrivée -->
+      <?php if (!empty($prefill_contracts)): ?>
+      <div class="section-title"><i class="fa-duotone fa-solid fa-file-signature"></i> Pré-remplis — À finaliser à l'arrivée
+        (<?= count($prefill_contracts) ?>)</div>
+      <div class="card">
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Réf.</th>
+                <th>Client</th>
+                <th>Date</th>
+                <th>Caution</th>
+                <th>Permis</th>
+                <th>Affecter un véhicule</th>
+              </tr>
+            </thead>
+            <tbody>
+              <?php foreach ($prefill_contracts as $pf): ?>
+              <tr>
+                <td><strong><?= htmlspecialchars($pf['ref']) ?></strong></td>
+                <td><?= htmlspecialchars($pf['prenom'] . ' ' . $pf['nom']) ?></td>
+                <td style="font-size:12px">
+                  <?= htmlspecialchars($pf['date_debut'] ?? '—') ?><br><?= htmlspecialchars(substr($pf['heure_debut'] ?? '', 0, 5)) ?>
+                </td>
+                <td>
+                  <?php
+                  $cs = $pf['caution_status'] ?? null;
+                  if ($cs === 'authorized' || $cs === 'captured') echo '<span class="badge badge-caution-ok" style="font-size:11px">&#128274; OK</span>';
+                  elseif ($cs === 'pending') echo '<span class="badge" style="background:#dbeafe;color:#1e3a8a;font-size:11px">En attente</span>';
+                  else echo '<span style="font-size:11px;color:var(--muted)">—</span>';
+                  ?>
+                </td>
+                <td>
+                  <?php if ($pf['has_permis']): ?>
+                  <span class="badge badge-caution-ok" style="font-size:11px">&#10003; Uploadé</span>
+                  <?php else: ?>
+                  <span style="font-size:11px;color:var(--muted)">—</span>
+                  <?php endif; ?>
+                </td>
+                <td>
+                  <div style="display:flex;gap:6px;align-items:center;">
+                    <select id="veh-sel-<?= (int)$pf['contrat_id'] ?>" style="font-size:12px;padding:4px 6px;border:1px solid #e2e8f0;border-radius:6px;background:#fff;">
+                      <option value="">— Véhicule —</option>
+                      <?php foreach ($vehicules_dispo as $vd): ?>
+                      <option value="<?= (int)$vd['id'] ?>"><?= htmlspecialchars($vd['marque'] . ' ' . $vd['modele'] . ' — ' . $vd['immatriculation']) ?></option>
+                      <?php endforeach; ?>
+                    </select>
+                    <button class="btn btn-primary btn-sm"
+                      onclick="openDossier(<?= (int)$pf['contrat_id'] ?>, '<?= htmlspecialchars($pf['prenom'] . ' ' . $pf['nom']) ?>', this)">
+                      <i class="fa-solid fa-play"></i> Ouvrir
+                    </button>
+                  </div>
+                </td>
+              </tr>
+              <?php endforeach; ?>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <?php endif; ?>
+
       <!-- Dossiers ouverts -->
       <div class="section-title"><i class="fa-duotone fa-solid fa-folder-open"></i> Dossiers ouverts
         (<?= count($open_dossiers) ?>)</div>
@@ -1265,6 +1533,7 @@ if ($view === 'dashboard') {
                   <th>Client</th>
                   <th>Départ</th>
                   <th>Statut</th>
+                  <th>Caution</th>
                   <th>Actions</th>
                 </tr>
               </thead>
@@ -1291,10 +1560,40 @@ if ($view === 'dashboard') {
                     </td>
                     <td><?= $badge ?></td>
                     <td>
+                      <?php
+                      $cs = $d['caution_status'] ?? null;
+                      if ($cs === 'authorized')      echo '<span class="badge badge-caution-ok" style="font-size:11px">&#128274; Autorisée</span>';
+                      elseif ($cs === 'captured')    echo '<span class="badge badge-caution-ko" style="font-size:11px">Débitée</span>';
+                      elseif ($cs === 'pending' && $d['caution_sent_at']) echo '<span class="badge" style="background:#dbeafe;color:#1e3a8a;font-size:11px">Email envoyé</span>';
+                      elseif ($cs === 'pending')     echo '<span class="badge badge-done" style="font-size:11px">En attente</span>';
+                      else                           echo '<span style="font-size:11px;color:var(--muted)">—</span>';
+                      ?>
+                    </td>
+                    <td>
                       <div style="display:flex;gap:6px;flex-wrap:wrap">
                         <a href="dashboard.php?view=dossier_detail&dossier=<?= $d['id'] ?>" class="btn btn-secondary btn-sm">
                           <i class="fa-solid fa-eye"></i> Consulter
                         </a>
+                        <?php if (!$cs || $cs === 'expired' || $cs === 'canceled'): ?>
+                        <button class="btn btn-sm" style="background:#e0f2fe;color:#0369a1;border:1px solid #bae6fd"
+                          onclick="sendCaution(<?= (int)$d['contrat_id'] ?>, '<?= htmlspecialchars($d['prenom'] . ' ' . $d['nom']) ?>')">
+                          <i class="fa-solid fa-shield-check"></i> Caution
+                        </button>
+                        <?php elseif ($cs === 'pending' && $d['caution_url']): ?>
+                        <button class="btn btn-sm" style="background:#e0f2fe;color:#0369a1;border:1px solid #bae6fd"
+                          onclick="resendCaution(<?= (int)$d['caution_id'] ?>, '<?= htmlspecialchars($d['prenom'] . ' ' . $d['nom']) ?>')">
+                          <i class="fa-solid fa-paper-plane"></i> Renvoyer
+                        </button>
+                        <?php elseif ($cs === 'authorized'): ?>
+                        <button class="btn btn-sm" style="background:#fef2f2;color:#b91c1c;border:1px solid #fecaca"
+                          onclick="captureOrCancelCaution('capture', <?= (int)$d['caution_id'] ?>, '<?= htmlspecialchars($d['prenom'] . ' ' . $d['nom']) ?>')">
+                          <i class="fa-solid fa-circle-dollar-to-slot"></i> Débiter
+                        </button>
+                        <button class="btn btn-sm" style="background:#f0fdf4;color:#15803d;border:1px solid #bbf7d0"
+                          onclick="captureOrCancelCaution('cancel', <?= (int)$d['caution_id'] ?>, '<?= htmlspecialchars($d['prenom'] . ' ' . $d['nom']) ?>')">
+                          <i class="fa-solid fa-lock-open"></i> Libérer
+                        </button>
+                        <?php endif; ?>
                         <a href="dashboard.php?view=etat_apres&dossier=<?= $d['id'] ?>" class="btn btn-sm"
                           style="background:#fff3cd;color:#856404;border:1px solid #ffeeba">
                           <i class="fa-solid fa-flag-checkered"></i> Clôturer
@@ -1536,6 +1835,90 @@ if ($view === 'dashboard') {
       t.className = type === 'success' ? 'success show' : 'show';
       clearTimeout(toastTimer);
       toastTimer = setTimeout(() => t.classList.remove('show'), 3800);
+    }
+
+    // ── Caution Stripe ────────────────────────────────────────────────────────────
+    async function cautionPost(data) {
+      const body = Object.entries(data).map(([k, v]) => encodeURIComponent(k) + '=' + encodeURIComponent(v)).join('&');
+      const r = await fetch('stripe_caution.php', { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body });
+      return r.json();
+    }
+
+    async function openDossier(contrat_id, client_name, btn) {
+      const sel = document.getElementById('veh-sel-' + contrat_id);
+      const vehicule_id = sel ? sel.value : '';
+      if (!vehicule_id) { showToast('Choisir un véhicule avant d\'ouvrir le dossier.'); return; }
+      if (!confirm('Ouvrir le dossier de ' + client_name + ' avec ce véhicule ?')) return;
+      btn.disabled = true; btn.innerHTML = '...';
+      const body = 'action=open_dossier&contrat_id=' + contrat_id + '&vehicule_id=' + vehicule_id;
+      const r = await fetch('dashboard.php', { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body });
+      const d = await r.json();
+      if (d.success) {
+        window.location.href = 'dashboard.php?view=dossier_detail&dossier=' + d.dossier_id;
+      } else {
+        showToast(d.message || 'Erreur');
+        btn.disabled = false; btn.innerHTML = '<i class="fa-solid fa-play"></i> Ouvrir';
+      }
+    }
+
+    async function sendCaution(contrat_id, client_name) {
+      if (!confirm('Créer et envoyer le lien de pré-autorisation caution à ' + client_name + ' ?')) return;
+      showToast('Création de la session Stripe...', 'success');
+      const d = await cautionPost({ action: 'create', contrat_id });
+      if (!d.success) { showToast(d.message || 'Erreur création'); return; }
+      const d2 = await cautionPost({ action: 'send_email', caution_id: d.caution_id });
+      if (d2.success) {
+        showToast('Lien caution envoyé par email.', 'success');
+        setTimeout(() => location.reload(), 1800);
+      } else {
+        showToast('Session créée mais erreur email : ' + (d2.message || ''));
+      }
+    }
+
+    async function resendCaution(caution_id, client_name) {
+      if (!confirm('Renvoyer le lien caution à ' + client_name + ' ?')) return;
+      const d = await cautionPost({ action: 'send_email', caution_id });
+      if (d.success) {
+        showToast('Email renvoyé.', 'success');
+        setTimeout(() => location.reload(), 1800);
+      } else {
+        showToast(d.message || 'Erreur envoi');
+      }
+    }
+
+    async function changeVehicule(dossier_id) {
+      const sel = document.getElementById('select-vehicule');
+      if (!sel) return;
+      const vehicule_id = sel.value;
+      const label = sel.options[sel.selectedIndex].text;
+      if (!confirm('Changer le véhicule pour :\n' + label + ' ?')) return;
+      const fd = new FormData();
+      fd.append('action', 'change_vehicule');
+      fd.append('dossier_id', dossier_id);
+      fd.append('vehicule_id', vehicule_id);
+      const r = await fetch('dashboard.php', { method: 'POST', body: fd });
+      const d = await r.json();
+      if (d.success) {
+        document.getElementById('vehicule-label').textContent = label;
+        showToast('Véhicule mis à jour.', 'success');
+      } else {
+        showToast(d.message || 'Erreur');
+      }
+    }
+
+    async function captureOrCancelCaution(type, caution_id, client_name) {
+      const isCapture = type === 'capture';
+      const msg = isCapture
+        ? 'Débiter la caution de ' + client_name + ' ?\n\nCette action est irréversible — le montant sera encaissé.'
+        : 'Libérer la caution de ' + client_name + ' ?\n\nLe blocage sur la carte du client sera annulé.';
+      if (!confirm(msg)) return;
+      const d = await cautionPost({ action: isCapture ? 'capture' : 'cancel', caution_id });
+      if (d.success) {
+        showToast(isCapture ? 'Caution débitée.' : 'Caution libérée.', 'success');
+        setTimeout(() => location.reload(), 1800);
+      } else {
+        showToast(d.message || 'Erreur');
+      }
     }
   </script>
 </body>

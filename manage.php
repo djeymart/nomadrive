@@ -1,12 +1,12 @@
 <?php
 session_start();
-require_once __DIR__ . '/config.php';
 
 $madiDir = '/var/www/html/madi.mt';
 if (!is_dir($madiDir)) $madiDir = dirname(__DIR__);
 require_once $madiDir . '/vendor/autoload.php';
 require_once $madiDir . '/php/fonctions.php';
 require_once $madiDir . '/php/config.php';
+require_once __DIR__ . '/config.php';
 $db1->query("SET NAMES 'utf8mb4'");
 try { $db1->exec("ALTER TABLE nomadrive_customers ADD COLUMN closeout_resource_ids VARCHAR(200) NULL DEFAULT NULL"); } catch (PDOException $e) {}
 
@@ -991,7 +991,7 @@ try {
     $bookingsRaw = $db1->query("
         SELECT DATE(start_datetime)                 AS day,
                DATE_FORMAT(start_datetime, '%H:%i') AS slot,
-               id, first_name, last_name, participants, product_name, product_id
+               id, first_name, last_name, email, participants, product_name, product_id
         FROM nomadrive_customers
         WHERE booking_status = 'CONFIRMED'
           AND start_datetime IS NOT NULL
@@ -1043,18 +1043,47 @@ function assignVehicles(array $bookings, array $vehicles, int $startOffset = 0):
             $rem -= $gpax;
             $assignments[] = [
                 'booking_id'  => $b['id'],
+                'email'       => $b['email'] ?? '',
+                'first_name'  => $b['first_name'] ?? '',
+                'last_name'   => $b['last_name']  ?? '',
                 'name'        => trim($b['first_name'] . ' ' . $b['last_name']),
                 'product'     => $b['product_name'],
                 'total_pax'   => $pax,
                 'group_pax'   => $gpax,
                 'group_num'   => $g + 1,
                 'group_total' => $groups,
+                'first_group' => $g === 0,
                 'vehicle'     => $vehicles[$vIdx % $n],
             ];
             $vIdx++;
         }
     }
     return $assignments;
+}
+
+// ── Données caution — dossiers ouverts ───────────────────────────────────────
+try {
+    $cautionDossiers = $db1->query("
+        SELECT d.id AS dossier_id, d.contrat_id,
+               CONCAT('ND-', LPAD(d.contrat_id,5,'0')) AS ref,
+               c.nom, c.prenom, c.email, c.date_debut,
+               sc.id             AS caution_id,
+               sc.status         AS caution_status,
+               sc.checkout_url   AS caution_url,
+               sc.email_sent_at  AS caution_sent_at
+        FROM nomadrive_dossiers d
+        JOIN nomadrive_contrats c ON c.id = d.contrat_id
+        LEFT JOIN nomadrive_stripe_cautions sc ON sc.contrat_id = d.contrat_id
+          AND sc.id = (SELECT MAX(id) FROM nomadrive_stripe_cautions WHERE contrat_id = d.contrat_id)
+        WHERE d.statut = 'ouvert'
+        ORDER BY c.date_debut ASC
+    ")->fetchAll(PDO::FETCH_ASSOC);
+} catch (Exception $e) { $cautionDossiers = []; }
+
+// Index cautions par email pour lookup rapide dans le planning
+$cautionByEmail = [];
+foreach ($cautionDossiers as $cd) {
+    if ($cd['email']) $cautionByEmail[strtolower($cd['email'])] = $cd;
 }
 
 // ── Vue planning standalone (GET ?view=planning) ──────────────────────────────
@@ -1662,12 +1691,44 @@ tbody td { padding: 11px 16px; color: #cbd5e1; vertical-align: middle; }
                 $color      = $vehColorMap[$veh['immatriculation']] ?? '#64748b';
                 $splitLabel = $a['group_total'] > 1 ? ' <span style="font-size:10px;color:#64748b">(' . $a['group_num'] . '/' . $a['group_total'] . ')</span>' : '';
             ?>
+            <?php
+            $caution = isset($a['email']) ? ($cautionByEmail[strtolower($a['email'])] ?? null) : null;
+            $cs = $caution['caution_status'] ?? null;
+            ?>
             <div style="display:flex;align-items:center;gap:12px;padding:8px 12px;background:#0f172a;border-radius:8px;border-left:3px solid <?= $color ?>">
                 <div style="flex:1;min-width:0">
                     <span style="font-weight:600;color:#f1f5f9"><?= htmlspecialchars($a['name']) ?></span><?= $splitLabel ?>
                     <span style="color:#475569;font-size:11px;margin-left:8px"><?= htmlspecialchars($a['product']) ?></span>
                 </div>
                 <div style="font-size:12px;color:#64748b;white-space:nowrap"><?= $a['group_pax'] ?> pax</div>
+                <?php if ($a['first_group']): ?>
+                <div style="display:flex;align-items:center;gap:6px;white-space:nowrap">
+                    <?php if ($cs === 'authorized'): ?>
+                        <span style="font-size:11px;font-weight:600;padding:2px 7px;border-radius:4px;background:#14532d33;color:#4ade80">&#128274; Caution OK</span>
+                    <?php elseif ($cs === 'captured'): ?>
+                        <span style="font-size:11px;font-weight:600;padding:2px 7px;border-radius:4px;background:#7f1d1d33;color:#f87171">Débitée</span>
+                    <?php elseif ($cs === 'pending' && $caution['caution_sent_at']): ?>
+                        <span style="font-size:11px;font-weight:600;padding:2px 7px;border-radius:4px;background:#1e3a5f33;color:#60a5fa">Email envoyé</span>
+                        <button onclick="manageSendCaution(<?= (int)$caution['contrat_id'] ?>,<?= (int)$caution['caution_id'] ?>,this)" style="background:#1e293b;border:1px solid #334155;color:#94a3b8;border-radius:5px;padding:3px 8px;font-size:10px;cursor:pointer">Renvoyer</button>
+                    <?php elseif ($caution): ?>
+                        <span style="font-size:11px;font-weight:600;padding:2px 7px;border-radius:4px;background:#334155;color:#94a3b8">Non envoyé</span>
+                        <button onclick="manageSendCaution(<?= (int)$caution['contrat_id'] ?>,<?= (int)($caution['caution_id'] ?? 0) ?>,this)" style="background:#6366f1;border:none;color:#fff;border-radius:5px;padding:3px 8px;font-size:10px;cursor:pointer">Envoyer</button>
+                    <?php else: ?>
+                        <button onclick='createDossier(<?= htmlspecialchars(json_encode([
+                            'prenom'      => $a['first_name'],
+                            'nom'         => $a['last_name'],
+                            'email'       => $a['email'],
+                            'vehicule_id' => $a['vehicle']['id'],
+                            'vehicule'    => $a['vehicle']['marque'] . ' ' . $a['vehicle']['modele'],
+                            'date_debut'  => $day,
+                            'heure_debut' => $slot,
+                        ]), ENT_QUOTES) ?>,this)'
+                            style="background:#334155;border:none;color:#94a3b8;border-radius:5px;padding:3px 8px;font-size:10px;cursor:pointer">
+                            Créer dossier
+                        </button>
+                    <?php endif; ?>
+                </div>
+                <?php endif; ?>
                 <div style="display:flex;align-items:center;gap:6px;white-space:nowrap">
                     <?php if ($veh['couleur']): ?>
                     <span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:<?= htmlspecialchars($veh['couleur']) ?>;border:1px solid #334155"></span>
@@ -1680,6 +1741,64 @@ tbody td { padding: 11px 16px; color: #cbd5e1; vertical-align: middle; }
             </div>
         </div>
         <?php endforeach; endforeach; endif; ?>
+    </div>
+
+    <!-- Caution Stripe — dossiers ouverts -->
+    <div class="sync-box" style="margin-top:24px">
+        <h2>Caution Stripe — dossiers ouverts
+            <span style="font-weight:400;color:#64748b;font-size:12px;margin-left:8px"><?= count($cautionDossiers) ?> dossier(s)</span>
+        </h2>
+        <?php if (empty($cautionDossiers)): ?>
+            <p style="font-size:13px;color:#475569">Aucun dossier ouvert.</p>
+        <?php else: ?>
+        <div style="overflow-x:auto;margin-top:12px">
+            <table style="width:100%;border-collapse:collapse">
+                <thead>
+                    <tr style="background:#0f172a">
+                        <th style="text-align:left;padding:8px 14px;font-size:11px;color:#64748b;text-transform:uppercase;letter-spacing:.05em">Réf</th>
+                        <th style="text-align:left;padding:8px 14px;font-size:11px;color:#64748b;text-transform:uppercase;letter-spacing:.05em">Client</th>
+                        <th style="text-align:left;padding:8px 14px;font-size:11px;color:#64748b;text-transform:uppercase;letter-spacing:.05em">Début</th>
+                        <th style="text-align:left;padding:8px 14px;font-size:11px;color:#64748b;text-transform:uppercase;letter-spacing:.05em">Statut</th>
+                        <th style="text-align:left;padding:8px 14px;font-size:11px;color:#64748b;text-transform:uppercase;letter-spacing:.05em">Email envoyé</th>
+                        <th style="padding:8px 14px"></th>
+                    </tr>
+                </thead>
+                <tbody>
+                <?php foreach ($cautionDossiers as $d):
+                    $cs = $d['caution_status'] ?? null;
+                    if ($cs === 'authorized')
+                        $badge = '<span style="display:inline-block;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600;background:#14532d33;color:#4ade80">Autorisée</span>';
+                    elseif ($cs === 'captured')
+                        $badge = '<span style="display:inline-block;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600;background:#7f1d1d33;color:#f87171">Débitée</span>';
+                    elseif ($cs === 'canceled')
+                        $badge = '<span style="display:inline-block;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600;background:#334155;color:#94a3b8">Annulée</span>';
+                    elseif ($cs === 'pending')
+                        $badge = '<span style="display:inline-block;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600;background:#1e3a5f33;color:#60a5fa">En attente</span>';
+                    else
+                        $badge = '<span style="display:inline-block;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600;background:#334155;color:#475569">Non créée</span>';
+                ?>
+                <tr style="border-top:1px solid #334155">
+                    <td style="padding:10px 14px;font-family:monospace;font-size:12px;color:#f1f5f9"><?= htmlspecialchars($d['ref']) ?></td>
+                    <td style="padding:10px 14px;font-weight:500;color:#cbd5e1"><?= htmlspecialchars($d['prenom'] . ' ' . $d['nom']) ?></td>
+                    <td style="padding:10px 14px;font-size:12px;color:#94a3b8"><?= $d['date_debut'] ? date('d/m/Y', strtotime($d['date_debut'])) : '—' ?></td>
+                    <td style="padding:10px 14px"><?= $badge ?></td>
+                    <td style="padding:10px 14px;font-size:12px;color:<?= $d['caution_sent_at'] ? '#4ade80' : '#475569' ?>">
+                        <?= $d['caution_sent_at'] ? date('d/m/Y H:i', strtotime($d['caution_sent_at'])) : '—' ?>
+                    </td>
+                    <td style="padding:10px 14px">
+                        <?php if (!in_array($cs, ['authorized', 'captured'])): ?>
+                        <button class="btn btn-primary btn-sm"
+                            onclick="manageSendCaution(<?= (int)$d['contrat_id'] ?>, <?= (int)($d['caution_id'] ?? 0) ?>, this)">
+                            <?= $d['caution_id'] ? 'Renvoyer' : 'Envoyer' ?>
+                        </button>
+                        <?php endif; ?>
+                    </td>
+                </tr>
+                <?php endforeach; ?>
+                </tbody>
+            </table>
+        </div>
+        <?php endif; ?>
     </div>
 </div><!-- /tab-planning -->
 
@@ -1955,6 +2074,39 @@ tbody td { padding: 11px 16px; color: #cbd5e1; vertical-align: middle; }
 </div><!-- /content -->
 
 <script>
+async function createDossier(data, btn) {
+    if (!confirm('Créer un dossier pour ' + data.prenom + ' ' + data.nom + ' ?')) return;
+    btn.disabled = true; btn.textContent = '...';
+    try {
+        const body = Object.entries(data).map(([k,v]) => encodeURIComponent(k) + '=' + encodeURIComponent(v)).join('&') + '&action=create_dossier';
+        const r = await fetch('stripe_caution.php', {method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded'}, body});
+        const d = await r.json();
+        if (d.success) { location.reload(); } else { alert('Erreur : ' + (d.message || '')); btn.disabled = false; btn.textContent = 'Créer dossier'; }
+    } catch(e) { alert('Erreur réseau'); btn.disabled = false; }
+}
+
+async function manageSendCaution(contratId, cautionId, btn) {
+    if (!confirm('Envoyer l\'email de caution ?\n\n→ À : jeremy.martinetti@gmail.com\n→ CC : contact@nomadrive.fr\n\n⚠️ Aucun email n\'est envoyé au client pour le moment (mode test).')) return;
+    btn.disabled = true;
+    btn.textContent = '...';
+    try {
+        const post = (data) => fetch('stripe_caution.php', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+            body: Object.entries(data).map(([k,v]) => encodeURIComponent(k) + '=' + encodeURIComponent(v)).join('&')
+        }).then(r => r.json());
+
+        let cid = cautionId;
+        if (!cid) {
+            const r = await post({action: 'create', contrat_id: contratId});
+            if (!r.success) { alert('Erreur création : ' + (r.message || '')); btn.disabled = false; btn.textContent = 'Envoyer'; return; }
+            cid = r.caution_id;
+        }
+        const r2 = await post({action: 'send_email', caution_id: cid});
+        if (r2.success) { location.reload(); } else { alert('Erreur envoi : ' + (r2.message || '')); btn.disabled = false; btn.textContent = 'Renvoyer'; }
+    } catch(e) { alert('Erreur réseau'); btn.disabled = false; }
+}
+
 function switchTab(tab) {
     ['avis', 'flotte', 'planning', 'api'].forEach(t => {
         document.getElementById('tab-' + t).style.display = t === tab ? '' : 'none';

@@ -1,4 +1,9 @@
 <?php
+$madiDir = '/var/www/html/madi.mt';
+if (!is_dir($madiDir)) $madiDir = dirname(__DIR__);
+require_once $madiDir . '/vendor/autoload.php';
+require_once $madiDir . '/php/fonctions.php';
+require_once $madiDir . '/php/config.php';
 require_once __DIR__ . '/config.php';
 $lang = in_array($_GET['lang'] ?? '', ['fr', 'en', 'it']) ? $_GET['lang'] : 'fr';
 
@@ -49,6 +54,10 @@ $t = [
                 'q' => 'Quelle carte bancaire apporter pour la caution ?',
                 'a' => 'Une <strong>pré-autorisation bancaire de 500 €</strong> est effectuée à titre de caution au départ du tour. Vous devez impérativement vous munir d\'une <strong>carte bancaire physique</strong> (carte plastique) — <strong>les cartes virtuelles ne sont pas acceptées</strong>.',
             ],
+            [
+                'q' => 'Où se garer à proximité ?',
+                'a' => 'Le <strong>Parking Port Lympia</strong> se trouve à <strong>200 mètres</strong> de notre local. <a href="https://www.google.com/maps/place/Parking+Port+Lympia+-+Port+de+Nice/@43.6943639,7.2796884,17z" target="_blank" rel="noopener">Voir sur Google Maps</a>',
+            ],
         ],
     ],
     'en' => [
@@ -97,6 +106,10 @@ $t = [
                 'q' => 'Which bank card do I need for the deposit?',
                 'a' => 'A <strong>€500 pre-authorisation</strong> is placed on your card as a security deposit at the start of the tour. You must bring a <strong>physical bank card</strong> (plastic card) — <strong>virtual cards are not accepted</strong>.',
             ],
+            [
+                'q' => 'Where can I park nearby?',
+                'a' => '<strong>Port Lympia car park</strong> is <strong>200 metres</strong> from our venue. <a href="https://www.google.com/maps/place/Parking+Port+Lympia+-+Port+de+Nice/@43.6943639,7.2796884,17z" target="_blank" rel="noopener">View on Google Maps</a>',
+            ],
         ],
     ],
     'it' => [
@@ -144,6 +157,10 @@ $t = [
             [
                 'q' => 'Quale carta bancaria portare per la cauzione?',
                 'a' => 'Una <strong>pre-autorizzazione di 500 €</strong> viene effettuata sulla vostra carta come cauzione all\'inizio del tour. È obbligatorio portare una <strong>carta bancaria fisica</strong> (carta plastificata) — <strong>le carte virtuali non sono accettate</strong>.',
+            ],
+            [
+                'q' => 'Dove parcheggiare nelle vicinanze?',
+                'a' => 'Il <strong>Parcheggio Port Lympia</strong> si trova a <strong>200 metri</strong> dalla nostra sede. <a href="https://www.google.com/maps/place/Parking+Port+Lympia+-+Port+de+Nice/@43.6943639,7.2796884,17z" target="_blank" rel="noopener">Vedi su Google Maps</a>',
             ],
         ],
     ],
