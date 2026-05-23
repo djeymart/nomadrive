@@ -25,6 +25,7 @@ $t = [
         'trust_guide' => 'Suivez notre guide local !',
         'trust_permit' => 'Permis B exigé',
         'trust_cancel' => 'Annulation gratuite 24h',
+        'trust_caution' => 'Caution 500 € / véhicule',
         'faq_label' => 'QUESTIONS FRÉQUENTES',
         'faq_title' => 'Tout savoir sur nos tours guidés à Nice',
         'faq_q1' => 'Faut-il un permis de conduire pour participer à un tour ?',
@@ -83,6 +84,7 @@ $t = [
         'trust_guide' => 'Follow our local guide!',
         'trust_permit' => 'Driving licence required',
         'trust_cancel' => 'Free cancellation 24h',
+        'trust_caution' => '€500 security deposit',
         'faq_label' => 'FREQUENTLY ASKED QUESTIONS',
         'faq_title' => 'Everything about our guided tours in Nice',
         'faq_q1' => 'Is a driving licence required to join a tour?',
@@ -141,6 +143,7 @@ $t = [
         'trust_guide' => 'Segui la nostra guida!',
         'trust_permit' => 'Patente richiesta',
         'trust_cancel' => 'Cancellazione gratuita 24h',
+        'trust_caution' => 'Cauzione 500 € / veicolo',
         'faq_label' => 'DOMANDE FREQUENTI',
         'faq_title' => 'Tutto sui nostri tour guidati a Nizza',
         'faq_q1' => 'È necessaria la patente per partecipare a un tour?',
@@ -858,6 +861,7 @@ $canonical = $lang === 'fr' ? 'https://nomadrive.fr/' : 'https://nomadrive.fr/?l
                     <span><i class="fa-duotone fa-solid fa-compass trust-icon"></i><?= $t['trust_guide'] ?></span>
                     <span><i class="fa-duotone fa-solid fa-id-card trust-icon"></i><?= $t['trust_permit'] ?></span>
                     <span><i class="fa-duotone fa-solid fa-rotate-left trust-icon"></i><?= $t['trust_cancel'] ?></span>
+                    <span><i class="fa-duotone fa-solid fa-lock trust-icon"></i><?= $t['trust_caution'] ?></span>
                 </div>
 
                 <div class="tours-details-accordion">

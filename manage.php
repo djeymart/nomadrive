@@ -1165,6 +1165,7 @@ h1 { font-size: 18px; font-weight: 800; color: #fff; letter-spacing: 1px; margin
 <?php
     exit;
 }
+$nd_page = 'manage';
 ?>
 <!DOCTYPE html>
 <html lang="fr">
@@ -1267,16 +1268,7 @@ tbody td { padding: 11px 16px; color: #cbd5e1; vertical-align: middle; }
 </head>
 <body>
 
-<div class="topbar">
-    <h1>NOMADRIVE · GESTION</h1>
-    <div class="topbar-right">
-        <span style="color:#64748b;font-size:12px"><?= date('d/m/Y H:i') ?></span>
-        <form method="POST" style="display:inline">
-            <input type="hidden" name="action" value="logout">
-            <button type="submit" class="btn btn-ghost">Déconnexion</button>
-        </form>
-    </div>
-</div>
+<?php include __DIR__ . '/_navbar.php'; ?>
 
 <div class="module-nav">
     <button class="module-tab active" id="tab-btn-avis" onclick="switchTab('avis')">Avis clients</button>

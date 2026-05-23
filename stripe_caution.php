@@ -19,7 +19,7 @@ if (!ndIsAuth($db1)) {
     exit;
 }
 
-$stripeKey = STRIPE_MODE === 'live' ? STRIPE_LIVE_SECRET_KEY : STRIPE_TEST_SECRET_KEY;
+$stripeKey = STRIPE_MODE === 'live' ? NDR_STRIPE_LIVE_SECRET_KEY : NDR_STRIPE_TEST_SECRET_KEY;
 \Stripe\Stripe::setApiKey($stripeKey);
 
 $action     = $_POST['action']     ?? '';
@@ -31,7 +31,9 @@ function sendCautionEmail(array $caution, array $contrat, string $checkoutUrl): 
     $ref          = 'ND-' . str_pad($contrat['id'], 5, '0', STR_PAD_LEFT);
     $nom_complet  = $contrat['prenom'] . ' ' . $contrat['nom'];
     $amount_str   = number_format($caution['amount'] / 100, 0, '.', '') . ' €';
-    $contract_url = 'https://nomadrive.fr/contrat.php?cid=' . (int)$contrat['id'] . '&token=' . substr(hash_hmac('sha256', (string)$contrat['id'], MANAGE_PASSWORD), 0, 24);
+    $contract_url_base = 'https://nomadrive.fr/contrat.php?cid=' . (int)$contrat['id'] . '&token=' . substr(hash_hmac('sha256', (string)$contrat['id'], MANAGE_PASSWORD), 0, 24);
+    $contract_url_en   = $contract_url_base . '&lang=en';
+    $contract_url_fr   = $contract_url_base . '&lang=fr';
     $first_name   = htmlspecialchars($contrat['prenom']);
     $date_fr      = !empty($contrat['date_debut']) ? (new DateTime($contrat['date_debut']))->format('d/m/Y') : '';
     $heure_str    = !empty($contrat['heure_debut']) ? substr($contrat['heure_debut'], 0, 5) : '';
@@ -61,9 +63,9 @@ function sendCautionEmail(array $caution, array $contrat, string $checkoutUrl): 
       <tr>
         <td style="padding:40px 40px 8px;">
           <p style="margin:0 0 12px;font-size:18px;font-weight:700;color:#0f172a;">See you soon, {$first_name}!</p>
-          <p style="margin:0 0 24px;font-size:15px;color:#334155;line-height:1.6;">Your NOMADRIVE experience is booked for <strong>{$when_en}</strong>. Prepare your arrival in a few minutes — it only takes a click.</p>
+          <p style="margin:0 0 20px;font-size:15px;color:#334155;line-height:1.6;">Your NOMADRIVE experience is booked for <strong>{$when_en}</strong>. Prepare your arrival in a few minutes — it only takes a click.</p>
           <div style="text-align:center;margin:0 0 20px;">
-            <a href="{$contract_url}" style="display:inline-block;background:#0f172a;color:#ffffff;font-size:15px;font-weight:700;padding:16px 40px;border-radius:10px;text-decoration:none;">Prepare my arrival</a>
+            <a href="{$contract_url_en}" style="display:inline-block;background:#0f172a;color:#ffffff;font-size:15px;font-weight:700;padding:16px 40px;border-radius:10px;text-decoration:none;">Prepare my arrival</a>
           </div>
           <table cellpadding="0" cellspacing="0" style="width:100%;margin:0 0 8px;">
             <tr>
@@ -94,9 +96,9 @@ function sendCautionEmail(array $caution, array $contrat, string $checkoutUrl): 
       <tr>
         <td style="padding:0 40px 40px;">
           <p style="margin:0 0 12px;font-size:18px;font-weight:700;color:#0f172a;">&Agrave; bient&ocirc;t, {$first_name}&nbsp;!</p>
-          <p style="margin:0 0 24px;font-size:15px;color:#334155;line-height:1.6;">Votre exp&eacute;rience NOMADRIVE est pr&eacute;vue le <strong>{$when_fr}</strong>. Pr&eacute;parez votre arriv&eacute;e en quelques minutes depuis chez vous.</p>
+          <p style="margin:0 0 20px;font-size:15px;color:#334155;line-height:1.6;">Votre exp&eacute;rience NOMADRIVE est pr&eacute;vue le <strong>{$when_fr}</strong>. Pr&eacute;parez votre arriv&eacute;e en quelques minutes depuis chez vous.</p>
           <div style="text-align:center;margin:0 0 20px;">
-            <a href="{$contract_url}" style="display:inline-block;background:#0f172a;color:#ffffff;font-size:15px;font-weight:700;padding:16px 40px;border-radius:10px;text-decoration:none;">Pr&eacute;parer mon arriv&eacute;e</a>
+            <a href="{$contract_url_fr}" style="display:inline-block;background:#0f172a;color:#ffffff;font-size:15px;font-weight:700;padding:16px 40px;border-radius:10px;text-decoration:none;">Pr&eacute;parer mon arriv&eacute;e</a>
           </div>
           <table cellpadding="0" cellspacing="0" style="width:100%;margin:0 0 8px;">
             <tr>
@@ -144,8 +146,7 @@ HTML;
         $mail->Encoding   = 'base64';
         $mail->setFrom('contact@nomadrive.fr', 'NOMADRIVE');
         $mail->addReplyTo('contact@nomadrive.fr', 'NOMADRIVE');
-        // TODO: remplacer par $contrat['email'] quand les tests sont validés
-        $mail->addAddress('jeremy.martinetti@gmail.com', $nom_complet);
+        $mail->addAddress(MAIL_TEST_OVERRIDE ?? $contrat['email'], $nom_complet);
         $mail->addCC('contact@nomadrive.fr', 'NOMADRIVE');
         $mail->isHTML(true);
         $mail->Subject = "Before your NOMADRIVE experience / Avant votre expérience NOMADRIVE — {$ref}";

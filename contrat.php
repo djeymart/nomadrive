@@ -3,7 +3,7 @@ if (session_status() === PHP_SESSION_NONE)
   session_start();
 
 // ─── Configuration ────────────────────────────────────────────────────────────
-define('CAUTION_MONTANT', 500); // Montant de la caution en euros — à modifier ici
+// CAUTION_MONTANT est défini dans config.php (chargé depuis nomadrive_settings)
 
 $madiDir = '/var/www/html/madi.mt';
 if (!is_dir($madiDir))
@@ -164,7 +164,7 @@ if ($link_mode && ($_GET['action'] ?? '') === 'stripe_redirect') {
     header('Location: ' . $existingUrl);
     exit;
   }
-  $stripeKey = STRIPE_MODE === 'live' ? STRIPE_LIVE_SECRET_KEY : STRIPE_TEST_SECRET_KEY;
+  $stripeKey = STRIPE_MODE === 'live' ? NDR_STRIPE_LIVE_SECRET_KEY : NDR_STRIPE_TEST_SECRET_KEY;
   \Stripe\Stripe::setApiKey($stripeKey);
   $cautionCents = (int)STRIPE_CAUTION_AMOUNT;
   $baseUrl  = 'https://nomadrive.fr';
@@ -202,9 +202,9 @@ if ($link_mode && ($_GET['action'] ?? '') === 'stripe_redirect') {
           ->execute([$link_cid, $session->id, $cautionCents, $session->url]);
     }
     header('Location: ' . $session->url);
-  } catch (\Stripe\Exception\ApiErrorException $e) {
+  } catch (\Exception $e) {
     error_log('[NOMADRIVE] contrat.php stripe_redirect: ' . $e->getMessage());
-    header('Location: ' . $cancelU . '&err=stripe');
+    header('Location: ' . $cancelU . '&err=stripe&errmsg=' . urlencode(substr($e->getMessage(), 0, 200)));
   }
   exit;
 }
@@ -677,9 +677,79 @@ HTML;
 }
 
 // ─── Variables de rendu HTML ──────────────────────────────────────────────────
-$step3_label = $link_mode ? 'Caution' : 'État avant';
+$lang = ($link_mode && ($_GET['lang'] ?? '') === 'en') ? 'en' : 'fr';
+$e = $lang === 'en';
+$tr = [
+    'page_title'       => $e ? 'Rental agreement — NOMADRIVE'        : 'Contrat de location — NOMADRIVE',
+    'subtitle'         => $e ? 'Rental agreement'                    : 'Contrat de location',
+    'step1'            => $e ? 'Details'   : 'Informations',
+    'step2'            => $e ? 'Licence'   : 'Permis',
+    'step3_caution'    => $e ? 'Deposit'   : 'Caution',
+    'step3_etat'       => $e ? 'Check-in'  : 'État avant',
+    'step4'            => $e ? 'Contract'  : 'Contrat',
+    'step5'            => 'Signature',
+    // Screen 1
+    'card_tenant'      => $e ? 'Tenant details'            : 'Informations du locataire',
+    'lbl_nom'          => $e ? 'Last name *'               : 'Nom *',
+    'lbl_prenom'       => $e ? 'First name *'              : 'Prénom *',
+    'lbl_email'        => 'Email *',
+    'lbl_adresse'      => $e ? 'Address'                   : 'Adresse',
+    'btn_to_permis'    => $e ? 'Continue — Driving licence' : 'Continuer — Photo du permis',
+    // Screen 2
+    'card_recto'       => $e ? 'Driving licence — Front'   : 'Permis de conduire — Recto',
+    'card_verso'       => $e ? 'Driving licence — Back'    : 'Permis de conduire — Verso',
+    'ph_recto'         => $e ? 'Tap to photograph the front' : 'Appuyer pour photographier le recto',
+    'ph_verso'         => $e ? 'Tap to photograph the back'  : 'Appuyer pour photographier le verso',
+    'retake'           => $e ? 'Retake'   : 'Reprendre',
+    'btn_back'         => $e ? 'Back'     : 'Retour',
+    'btn_continue'     => $e ? 'Continue' : 'Continuer',
+    'permis_optional'  => $e ? 'Licence photos are optional but recommended.' : 'Les photos du permis sont facultatives mais recommandées.',
+    // Screen 3 link_mode
+    'caution_title'    => $e ? 'Deposit pre-authorisation'  : 'Pré-autorisation caution',
+    'caution_amount'   => $e
+        ? 'An amount of <strong>' . CAUTION_MONTANT . ' €</strong> will be pre-authorised on your payment card.'
+        : 'Un montant de <strong>' . CAUTION_MONTANT . ' €</strong> sera pré-autorisé sur votre carte bancaire.',
+    'caution_nodebit'  => $e
+        ? 'No immediate charge — the amount is simply held and fully released at the end of the session if everything goes well.'
+        : 'Aucun débit immédiat — la somme est simplement bloquée et libérée intégralement à la fin du tour si tout se passe bien.',
+    'caution_warning'  => $e
+        ? "<strong>Important:</strong> If you do not complete this pre-authorisation online, a deposit of <strong>500 €</strong> will be required on-site. Only <strong>physical bank cards</strong> are accepted (no Apple Pay / Google Pay). Your <strong>physical driving licence</strong> will also be required."
+        : "<strong>Important :</strong> Si vous n'effectuez pas cette pré-autorisation en ligne, un dépôt de <strong>500 €</strong> sera demandé sur place. Seules les <strong>cartes physiques</strong> sont acceptées (pas Apple Pay / Google Pay). Votre <strong>permis physique</strong> sera également exigé.",
+    'btn_stripe'       => ($e ? 'Pre-authorise ' : 'Pré-autoriser ') . CAUTION_MONTANT . ' € — Stripe',
+    'btn_skip'         => $e ? 'Skip — I will pay on-site'  : 'Passer — je réglerai sur place',
+    'caution_cancel'   => $e ? 'The pre-authorisation was cancelled. You can try again above.' : 'La pré-autorisation a été annulée. Vous pouvez réessayer ci-dessus.',
+    'caution_api_err'  => $e ? 'A technical error prevented the payment from loading. Please try again.' : 'Une erreur technique a empêché le chargement du paiement. Veuillez réessayer.',
+    // Screen 4
+    'greeting'         => $e ? 'Hello'   : 'Bonjour',
+    'read_before_sign' => $e ? 'Please read the rental conditions below carefully before signing.' : 'Veuillez lire attentivement les conditions de location ci-dessous avant de signer.',
+    'recap_title'      => $e ? 'Rental agreement — Summary'      : 'Contrat de location — Récapitulatif',
+    'recap_tenant'     => $e ? 'Tenant'  : 'Locataire',
+    'recap_date'       => $e ? 'Date'    : 'Date',
+    'cgv_title'        => $e ? 'General rental conditions'       : 'Conditions générales de location',
+    'btn_to_sign'      => $e ? 'Continue to signature'           : 'Continuer vers la signature',
+    // Screen 5
+    'sig_title'        => $e ? 'Your signature'    : 'Votre signature',
+    'sig_desc'         => $e ? 'Sign in the area below with your finger or stylus.' : 'Signez dans la zone ci-dessous avec votre doigt ou le stylet.',
+    'sig_clear'        => $e ? 'Clear'             : 'Effacer',
+    'sig_hint'         => $e ? 'Sign here →'       : 'Signez ici →',
+    'accept_terms'     => $e ? 'I certify that I have read and accepted the general rental conditions. I confirm that the information provided is accurate.' : "Je certifie avoir lu et accepté les conditions générales de location. J'atteste que les informations fournies sont exactes.",
+    'btn_submit'       => $e ? 'Sign and send the contract'      : 'Valider et envoyer le contrat',
+    'email_sent_to'    => $e ? 'The contract will be sent by email to' : 'Le contrat sera envoyé par email à',
+    // Screen 6
+    'signed_title'     => $e ? 'Contract signed!'  : 'Contrat signé !',
+    'thank_you'        => $e ? 'Thank you'          : 'Merci',
+    'contract_sent_to' => $e ? 'Your contract has been sent to' : 'Votre contrat a été envoyé à',
+    'enjoy'            => $e ? 'Enjoy your ride with NOMADRIVE!' : 'Bonne location avec NOMADRIVE !',
+    // JS
+    'js_name_required' => $e ? 'Please enter your first and last name.' : 'Veuillez saisir le nom et le prénom.',
+    'js_email_invalid' => $e ? 'Please enter a valid email address.'    : 'Veuillez saisir un email valide.',
+    'js_send_error'    => $e ? 'Sending failed.'                        : "Erreur lors de l'envoi.",
+    'js_network_error' => $e ? 'Network error. Please try again.'       : 'Erreur réseau. Veuillez réessayer.',
+];
+$step3_label = $link_mode ? $tr['step3_caution'] : $tr['step3_etat'];
 $initial_step = 1;
 $stripe_caution_cancelled = false;
+$stripe_api_error = false;
 if ($link_mode) {
   $cp = $_GET['caution'] ?? null;
   if ($cp === 'ok') {
@@ -687,6 +757,11 @@ if ($link_mode) {
   } elseif ($cp === 'cancel') {
     $initial_step = 3;
     $stripe_caution_cancelled = true;
+    $stripe_api_error = ($_GET['err'] ?? '') === 'stripe';
+    $stripe_errmsg    = htmlspecialchars(substr($_GET['errmsg'] ?? '', 0, 200));
+    // Invalide la session pending pour que le retry crée une nouvelle session Stripe
+    $db1->prepare("UPDATE nomadrive_stripe_cautions SET status='canceled' WHERE contrat_id=? AND status='pending'")
+        ->execute([$link_cid]);
   } else {
     $scChk = $db1->prepare("SELECT id FROM nomadrive_stripe_cautions WHERE contrat_id=? AND status IN ('authorized','captured') ORDER BY id DESC LIMIT 1");
     $scChk->execute([$link_cid]);
@@ -695,13 +770,13 @@ if ($link_mode) {
 }
 ?>
 <!DOCTYPE html>
-<html lang="fr">
+<html lang="<?= $lang ?>">
 
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <meta name="robots" content="noindex,nofollow">
-  <title>Contrat de location — NOMADRIVE</title>
+  <title><?= htmlspecialchars($tr['page_title']) ?></title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
   <!-- Signature pad library -->
@@ -1422,7 +1497,7 @@ if ($link_mode) {
     <header>
       <div>
         <div class="logo">NOMADRIVE</div>
-        <div class="subtitle">Contrat de location</div>
+        <div class="subtitle"><?= $tr['subtitle'] ?></div>
       </div>
       <?php if (!$link_mode): ?>
       <a href="dashboard.php" style="font-size:13px;color:var(--muted);text-decoration:none;display:flex;align-items:center;gap:6px;">
@@ -1510,11 +1585,11 @@ if ($link_mode) {
       <div class="steps">
         <div class="step active" id="step-1">
           <div class="step-dot">1</div>
-          <div class="step-label">Informations</div>
+          <div class="step-label"><?= $tr['step1'] ?></div>
         </div>
         <div class="step" id="step-2">
           <div class="step-dot">2</div>
-          <div class="step-label">Permis</div>
+          <div class="step-label"><?= $tr['step2'] ?></div>
         </div>
         <div class="step" id="step-3">
           <div class="step-dot">3</div>
@@ -1522,11 +1597,11 @@ if ($link_mode) {
         </div>
         <div class="step" id="step-4">
           <div class="step-dot">4</div>
-          <div class="step-label">Contrat</div>
+          <div class="step-label"><?= $tr['step4'] ?></div>
         </div>
         <div class="step" id="step-5">
           <div class="step-dot">5</div>
-          <div class="step-label">Signature</div>
+          <div class="step-label"><?= $tr['step5'] ?></div>
         </div>
       </div>
     </div>
@@ -1539,7 +1614,7 @@ if ($link_mode) {
       <div class="card">
         <div class="card-title">
           <i class="fa-duotone fa-solid fa-user-tie"></i>
-          Informations du locataire
+          <?= $tr['card_tenant'] ?>
         </div>
         <div class="form-grid">
           <?php if ($link_mode): ?>
@@ -1547,22 +1622,22 @@ if ($link_mode) {
           <input type="hidden" id="link_token" value="<?= htmlspecialchars($link_token) ?>">
           <?php endif; ?>
           <div class="form-group">
-            <label for="nom">Nom *</label>
+            <label for="nom"><?= $tr['lbl_nom'] ?></label>
             <input type="text" id="nom" placeholder="DUPONT" autocomplete="family-name" autocapitalize="words"
               value="<?= $link_mode ? htmlspecialchars($link_data['nom']) : '' ?>">
           </div>
           <div class="form-group">
-            <label for="prenom">Prénom *</label>
+            <label for="prenom"><?= $tr['lbl_prenom'] ?></label>
             <input type="text" id="prenom" placeholder="Sophie" autocomplete="given-name" autocapitalize="words"
               value="<?= $link_mode ? htmlspecialchars($link_data['prenom']) : '' ?>">
           </div>
           <div class="form-group full">
-            <label for="email">Email *</label>
+            <label for="email"><?= $tr['lbl_email'] ?></label>
             <input type="email" id="email" placeholder="sophie.dupont@email.com" autocomplete="email" inputmode="email"
               value="<?= $link_mode ? htmlspecialchars($link_data['email']) : '' ?>">
           </div>
           <div class="form-group full">
-            <label for="adresse">Adresse</label>
+            <label for="adresse"><?= $tr['lbl_adresse'] ?></label>
             <input type="text" id="adresse" placeholder="15 rue de France, 06000 Nice" autocomplete="street-address">
           </div>
         </div>
@@ -1604,7 +1679,7 @@ if ($link_mode) {
       <?php endif; ?>
 
       <button class="btn btn-primary" onclick="goToStep2()">
-        Continuer — Photo du permis
+        <?= $tr['btn_to_permis'] ?>
         <i class="fa-solid fa-arrow-right"></i>
       </button>
     </div>
@@ -1639,15 +1714,15 @@ if ($link_mode) {
       <div class="card">
         <div class="card-title">
           <i class="fa-duotone fa-solid fa-id-card"></i>
-          Permis de conduire — Recto
+          <?= $tr['card_recto'] ?>
         </div>
         <div class="photo-area" id="photo-recto" onclick="openCamera('recto')">
           <div class="placeholder">
             <i class="fa-duotone fa-solid fa-camera" style="font-size:38px;color:var(--muted);"></i>
-            <span>Appuyer pour photographier le recto</span>
+            <span><?= $tr['ph_recto'] ?></span>
           </div>
           <img id="img-recto" src="" alt="Permis recto">
-          <button class="retake-btn" onclick="event.stopPropagation(); openCamera('recto')">Reprendre</button>
+          <button class="retake-btn" onclick="event.stopPropagation(); openCamera('recto')"><?= $tr['retake'] ?></button>
         </div>
         <input type="file" id="file-recto" accept="image/*" capture="environment">
       </div>
@@ -1655,24 +1730,24 @@ if ($link_mode) {
       <div class="card">
         <div class="card-title">
           <i class="fa-duotone fa-solid fa-id-card"></i>
-          Permis de conduire — Verso
+          <?= $tr['card_verso'] ?>
         </div>
         <div class="photo-area" id="photo-verso" onclick="openCamera('verso')">
           <div class="placeholder">
             <i class="fa-duotone fa-solid fa-camera" style="font-size:38px;color:var(--muted);"></i>
-            <span>Appuyer pour photographier le verso</span>
+            <span><?= $tr['ph_verso'] ?></span>
           </div>
           <img id="img-verso" src="" alt="Permis verso">
-          <button class="retake-btn" onclick="event.stopPropagation(); openCamera('verso')">Reprendre</button>
+          <button class="retake-btn" onclick="event.stopPropagation(); openCamera('verso')"><?= $tr['retake'] ?></button>
         </div>
         <input type="file" id="file-verso" accept="image/*" capture="environment">
       </div>
 
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px;">
-        <button class="btn btn-secondary" onclick="goToStep(1)"><i class="fa-solid fa-arrow-left"></i> Retour</button>
+        <button class="btn btn-secondary" onclick="goToStep(1)"><i class="fa-solid fa-arrow-left"></i> <?= $tr['btn_back'] ?></button>
         <?php if ($link_mode): ?>
         <button class="btn btn-primary" onclick="goToStep(3)">
-          Continuer <i class="fa-solid fa-arrow-right"></i>
+          <?= $tr['btn_continue'] ?> <i class="fa-solid fa-arrow-right"></i>
         </button>
         <?php else: ?>
         <button class="btn btn-primary" onclick="goToStep3()">
@@ -1680,7 +1755,7 @@ if ($link_mode) {
         </button>
         <?php endif; ?>
       </div>
-      <p style="text-align:center;font-size:12px;color:var(--muted);">Les photos du permis sont facultatives mais recommandées.</p>
+      <p style="text-align:center;font-size:12px;color:var(--muted);"><?= $tr['permis_optional'] ?></p>
     </div>
 
     <!-- ═══════════════════════════════════════════════════════════
@@ -1695,39 +1770,40 @@ if ($link_mode) {
         <div style="width:64px;height:64px;border-radius:50%;background:#e8f4fd;display:flex;align-items:center;justify-content:center;margin:0 auto 18px;">
           <i class="fa-solid fa-shield-check" style="font-size:28px;color:var(--blue);"></i>
         </div>
-        <h2 style="font-size:18px;margin-bottom:10px;">Pré-autorisation caution</h2>
+        <h2 style="font-size:18px;margin-bottom:10px;"><?= $tr['caution_title'] ?></h2>
         <p style="font-size:14px;color:var(--muted);margin-bottom:6px;">
-          Un montant de <strong><?= CAUTION_MONTANT ?> €</strong> sera pré-autorisé sur votre carte bancaire.
+          <?= $tr['caution_amount'] ?>
         </p>
         <p style="font-size:13px;color:var(--muted);">
-          Aucun débit immédiat — la somme est simplement bloquée et libérée intégralement à la fin du tour si tout se passe bien.
+          <?= $tr['caution_nodebit'] ?>
         </p>
       </div>
 
       <div style="background:#fff3cd;border:1px solid #ffc107;border-radius:10px;padding:14px 16px;margin-bottom:16px;font-size:13px;color:#856404;line-height:1.6;">
-        <strong>Important :</strong> Si vous n'effectuez pas cette pré-autorisation en ligne, un dépôt de <strong>500 €</strong> sera demandé sur place.
-        Seules les <strong>cartes physiques</strong> sont acceptées (pas Apple Pay / Google Pay).
-        Votre <strong>permis physique</strong> sera également exigé.
+        <?= $tr['caution_warning'] ?>
       </div>
 
       <button class="btn btn-primary" onclick="proceedToStripe()" id="btn-proceed-stripe">
         <i class="fa-solid fa-lock"></i>
-        Pré-autoriser <?= CAUTION_MONTANT ?> € — Stripe
+        <?= $tr['btn_stripe'] ?>
       </button>
 
       <button class="btn btn-secondary" style="margin-top:10px;" onclick="goToStep4()">
-        Passer — je réglerai sur place
+        <?= $tr['btn_skip'] ?>
       </button>
 
       <?php if ($stripe_caution_cancelled): ?>
       <div style="background:#fee2e2;border:1px solid #fca5a5;border-radius:8px;padding:12px 14px;margin-top:14px;font-size:13px;color:#991b1b;">
-        La pré-autorisation a été annulée. Vous pouvez réessayer ci-dessus.
+        <?= $stripe_api_error ? $tr['caution_api_err'] : $tr['caution_cancel'] ?>
+        <?php if ($stripe_errmsg): ?>
+        <br><code style="font-size:11px;word-break:break-all;"><?= $stripe_errmsg ?></code>
+        <?php endif; ?>
       </div>
       <?php endif; ?>
 
       <div style="margin-top:14px;">
         <button class="btn btn-secondary" onclick="goToStep(2)">
-          <i class="fa-solid fa-arrow-left"></i> Retour
+          <i class="fa-solid fa-arrow-left"></i> <?= $tr['btn_back'] ?>
         </button>
       </div>
 
@@ -1778,19 +1854,18 @@ if ($link_mode) {
     <div class="screen" id="screen-4">
 
       <div class="card" style="background:linear-gradient(135deg,#e8f4fd,#f0f9ff);border-color:#b3d9f5;">
-        <p style="font-size:14px;font-weight:600;color:var(--blue);">Bonjour <span id="display-prenom"></span>,</p>
-        <p style="font-size:13px;color:var(--muted);margin-top:4px;">Veuillez lire attentivement les conditions de
-          location ci-dessous avant de signer.</p>
+        <p style="font-size:14px;font-weight:600;color:var(--blue);"><?= $tr['greeting'] ?> <span id="display-prenom"></span>,</p>
+        <p style="font-size:13px;color:var(--muted);margin-top:4px;"><?= $tr['read_before_sign'] ?></p>
       </div>
 
       <div class="card">
         <div class="card-title">
           <i class="fa-duotone fa-solid fa-list-check"></i>
-          Contrat de location — Récapitulatif
+          <?= $tr['recap_title'] ?>
         </div>
         <table style="width:100%;font-size:13px;border-collapse:collapse;">
           <tr>
-            <td style="padding:5px 0;color:var(--muted);width:45%;">Locataire</td>
+            <td style="padding:5px 0;color:var(--muted);width:45%;"><?= $tr['recap_tenant'] ?></td>
             <td style="font-weight:600;" id="recap-nom"></td>
           </tr>
           <?php if (!$link_mode): ?>
@@ -1800,7 +1875,7 @@ if ($link_mode) {
           </tr>
           <?php endif; ?>
           <tr>
-            <td style="padding:5px 0;color:var(--muted);">Date</td>
+            <td style="padding:5px 0;color:var(--muted);"><?= $tr['recap_date'] ?></td>
             <td id="recap-debut"></td>
           </tr>
           <?php if (!$link_mode): ?>
@@ -1815,7 +1890,7 @@ if ($link_mode) {
       <div class="card">
         <div class="card-title">
           <i class="fa-duotone fa-solid fa-file-contract"></i>
-          Conditions générales de location
+          <?= $tr['cgv_title'] ?>
         </div>
         <div class="contract-body" id="contract-text">
           <h3>DÉCLARATION DU CLIENT / CUSTOMER DECLARATION</h3>
@@ -1896,7 +1971,7 @@ if ($link_mode) {
       </div>
 
       <button class="btn btn-primary" onclick="goToStep5()">
-        Continuer vers la signature
+        <?= $tr['btn_to_sign'] ?>
         <i class="fa-solid fa-arrow-right"></i>
       </button>
     </div>
@@ -1909,32 +1984,30 @@ if ($link_mode) {
       <div class="card">
         <div class="card-title">
           <i class="fa-duotone fa-solid fa-signature"></i>
-          Votre signature
+          <?= $tr['sig_title'] ?>
         </div>
-        <p style="font-size:13px;color:var(--muted);margin-bottom:14px;">Signez dans la zone ci-dessous avec votre doigt
-          ou le stylet.</p>
+        <p style="font-size:13px;color:var(--muted);margin-bottom:14px;"><?= $tr['sig_desc'] ?></p>
         <div class="sig-wrap">
           <canvas id="signature-canvas"></canvas>
-          <button class="sig-clear" onclick="clearSignature()">Effacer</button>
+          <button class="sig-clear" onclick="clearSignature()"><?= $tr['sig_clear'] ?></button>
         </div>
-        <p class="sig-hint">Signez ici →</p>
+        <p class="sig-hint"><?= $tr['sig_hint'] ?></p>
       </div>
 
       <div class="card">
         <div class="checkbox-group">
           <input type="checkbox" id="accept-terms">
           <label for="accept-terms">
-            Je certifie avoir lu et accepté les conditions générales de location. J'atteste que les informations
-            fournies sont exactes.
+            <?= $tr['accept_terms'] ?>
           </label>
         </div>
       </div>
 
       <button class="btn btn-primary" id="btn-submit" onclick="submitContract()" disabled>
         <i class="fa-solid fa-paper-plane"></i>
-        Valider et envoyer le contrat
+        <?= $tr['btn_submit'] ?>
       </button>
-      <p style="text-align:center;font-size:12px;color:var(--muted);margin-top:10px;">Le contrat sera envoyé par email à
+      <p style="text-align:center;font-size:12px;color:var(--muted);margin-top:10px;"><?= $tr['email_sent_to'] ?>
         <strong id="display-email"></strong>
       </p>
     </div>
@@ -1947,12 +2020,12 @@ if ($link_mode) {
         <div class="success-icon">
           <i class="fa-solid fa-check" style="font-size:32px;color:#fff;"></i>
         </div>
-        <h2>Contrat signé !</h2>
-        <p>Merci <strong id="confirm-prenom"></strong>.</p>
-        <p>Votre contrat a été envoyé à<br><strong id="confirm-email"></strong></p>
+        <h2><?= $tr['signed_title'] ?></h2>
+        <p><?= $tr['thank_you'] ?> <strong id="confirm-prenom"></strong>.</p>
+        <p><?= $tr['contract_sent_to'] ?><br><strong id="confirm-email"></strong></p>
         <div
           style="margin-top:28px;padding:16px;background:var(--gray);border-radius:10px;font-size:13px;color:var(--muted);">
-          Bonne location avec NOMADRIVE !
+          <?= $tr['enjoy'] ?>
         </div>
         <?php if (!$link_mode): ?>
         <button class="btn btn-secondary" style="margin-top:20px;" onclick="resetForm()">
@@ -1989,6 +2062,13 @@ if ($link_mode) {
     const linkCidVal      = <?= (int)$link_cid ?>;
     const linkTokenVal    = <?= json_encode($link_token) ?>;
     const linkVehicule    = <?= json_encode($link_mode ? ($link_data['vehicule'] ?? '') : '') ?>;
+    const i18n = <?= json_encode([
+        'nameRequired' => $tr['js_name_required'],
+        'emailInvalid' => $tr['js_email_invalid'],
+        'sendError'    => $tr['js_send_error'],
+        'networkError' => $tr['js_network_error'],
+        'btnSubmit'    => $tr['btn_submit'],
+    ]) ?>;
 
     // STATE
     // ─────────────────────────────────────────────────────────────────────────────
@@ -2026,8 +2106,8 @@ if ($link_mode) {
       const debut = document.getElementById('date_debut').value;
       const hd = document.getElementById('heure_debut').value;
 
-      if (!nom || !prenom) { showToast('Veuillez saisir le nom et le prénom.'); return; }
-      if (!email || !email.includes('@')) { showToast('Veuillez saisir un email valide.'); return; }
+      if (!nom || !prenom) { showToast(i18n.nameRequired); return; }
+      if (!email || !email.includes('@')) { showToast(i18n.emailInvalid); return; }
       if (!vehicule) { showToast('Veuillez choisir un véhicule.'); return; }
       if (!debut) { showToast('Veuillez saisir la date.'); return; }
       if (!hd) { showToast("Veuillez saisir l'heure de départ."); return; }
@@ -2076,7 +2156,8 @@ if ($link_mode) {
 
       document.getElementById('display-prenom').textContent = prenom || 'vous';
       document.getElementById('recap-nom').textContent      = (prenom + ' ' + nom).trim();
-      document.getElementById('recap-vehicule').textContent = vehiculeText;
+      const recapVehicule = document.getElementById('recap-vehicule');
+      if (recapVehicule) recapVehicule.textContent = vehiculeText;
       document.getElementById('recap-debut').textContent    = debut ? `${formatDate(debut)} à ${hd}` : '—';
       const empreinteEl = document.getElementById('dossier_empreinte');
       const recapHeures = document.getElementById('recap-heures');
@@ -2287,15 +2368,19 @@ if ($link_mode) {
           goToStep(6);
           // Masquer la barre de progression
           document.querySelector('.steps').parentElement.style.display = 'none';
+          // Redirect après confirmation
+          setTimeout(() => {
+            window.location.href = linkMode ? 'https://nomadrive.fr' : 'dashboard.php';
+          }, 4000);
         } else {
-          showToast(data.message || "Erreur lors de l'envoi.");
+          showToast(data.message || i18n.sendError);
           btn.disabled = false;
-          btn.innerHTML = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 2L11 13"/><path d="M22 2 15 22 11 13 2 9l20-7z"/></svg> Valider et envoyer le contrat';
+          btn.innerHTML = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 2L11 13"/><path d="M22 2 15 22 11 13 2 9l20-7z"/></svg> ' + i18n.btnSubmit;
         }
       } catch (e) {
-        showToast("Erreur réseau. Veuillez réessayer.");
+        showToast(i18n.networkError);
         btn.disabled = false;
-        btn.innerHTML = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 2L11 13"/><path d="M22 2 15 22 11 13 2 9l20-7z"/></svg> Valider et envoyer le contrat';
+        btn.innerHTML = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 2L11 13"/><path d="M22 2 15 22 11 13 2 9l20-7z"/></svg> ' + i18n.btnSubmit;
         checkSubmitReady();
       }
     }
@@ -2481,7 +2566,7 @@ if ($link_mode) {
       else if (initialStep > 1) goToStep(initialStep);
 
       <?php if ($stripe_caution_cancelled): ?>
-      showToast('La pré-autorisation a été annulée. Vous pouvez réessayer.');
+      showToast(<?= $stripe_api_error ? json_encode($tr['caution_api_err']) : json_encode($tr['caution_cancel']) ?>);
       <?php endif; ?>
     })();
   </script>

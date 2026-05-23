@@ -20,8 +20,9 @@ L'application couvre quatre périmètres : site public, back-office opérateur, 
 ```
 nomadrive/
 │
-├── config.php               Clés chiffrées AES-128-CBC (Bokun, SMTP, Stripe, Spotify…)
+├── config.php               Clés chiffrées AES-128-CBC (Bokun, SMTP, Stripe, Spotify…) + chargement settings BDD
 ├── nomadrive_auth.php       Auth partagée : session + cookie remember-me 30 jours
+├── settings.php             Panel admin paramètres opérationnels (super-admin MADI requis pour modifier)
 │
 ├── index.php                Site public (FR / EN / IT)
 ├── cgv.php                  Conditions générales
@@ -43,14 +44,17 @@ nomadrive/
 ├── tip_webhook.php          Webhook Stripe Connect (payment_intent.succeeded)
 │
 ├── cron_reviews.php         Cron 15 min — sync Bokun + emails avis
-├── cron_caution.php         Cron horaire — email pré-arrivée (désactivé tant que link_mode n'est pas ouvert)
+├── cron_caution.php         Cron horaire — auto-pré-enregistrement Bokun (si activé) + email pré-arrivée (si activé)
 ├── cron_closeouts.php       Cron 15 min — gestion pool (overcapacity + annulations)
 ├── webhook_sarbacane.php    Webhook passif — événements email Sarbacane
 ├── sync_gyg_reviews.php     Fonction de scrape GYG (appelée par index.php)
 ├── push_reviews.php         Endpoint passif — réception avis depuis script externe
 │
 ├── test_sogecommerce.php    Page de test Sogecommerce (en attente activation REST)
-├── sql_stripe.sql           SQL — table nomadrive_stripe_cautions
+├── SQL/
+│   ├── nomadrive.sql        Schéma complet initial
+│   ├── sql_stripe.sql       Table nomadrive_stripe_cautions
+│   └── settings.sql         Paramètres opérationnels + colonne bokun_booking_id (à exécuter une fois)
 │
 ├── AUTOMATISATIONS.md       Détail de tout ce qui tourne automatiquement
 └── README.md                Ce fichier
@@ -183,6 +187,22 @@ Endpoint AJAX (POST) appelé depuis `dashboard.php` ou `manage.php`. Actions :
 ### tablette.php — Interface véhicule
 Accès par `?key=<licence_key>` (16 hex unique par véhicule). Sert de GPS guidé embarqué avec carte Leaflet, statut GPS temps réel, et panneau musique Spotify (recherche via API Spotify avec cache token fichier). Conçu pour fonctionner en plein écran sur tablette en paysage.
 
+### settings.php — Paramètres opérationnels
+
+Panel admin pour modifier les constantes opérationnelles sans toucher au code.
+
+**Niveaux d'accès :**
+- **Opérateur** (`ndIsAuth`) : peut consulter les paramètres en lecture seule.
+- **Super-admin MADI** : peut modifier. Accès via token HMAC signé, généré depuis `madi.mt/nd_settings.php` (WebAuthn obligatoire). Token valable 5 min, stocké en session ensuite.
+
+**Flow super-admin :**
+1. Se connecter sur `madi.mt` via WebAuthn
+2. Aller sur `madi.mt/nd_settings.php`
+3. Redirect automatique vers `nomadrive.fr/settings.php` avec token signé
+4. Session super-admin ouverte pour la durée de la navigation
+
+**Secret partagé :** `nd_settings_secret` dans `nomadrive_settings` — généré automatiquement par `SQL/settings.sql` (SHA256 aléatoire). Utilisé par les deux serveurs via le `$db1` MySQL partagé.
+
 ### nomadrive_auth.php
 Authentification partagée entre `dashboard.php` et `contrat.php`. Session PHP + cookie remember-me (sliding expiry 30 jours, token 64 hex en DB). Mot de passe stocké hashé sha256×2 dans `nomadrive_settings`.
 
@@ -197,7 +217,7 @@ Résumé :
 | Script | Fréquence | Ce qu'il fait |
 |---|---|---|
 | `cron_reviews.php` | Toutes les 15 min | Sync Bokun J-7→J+90 + email avis 1h après tour + relance 24h |
-| `cron_caution.php` | Toutes les heures (commenté) | Email pré-arrivée : J-1 16h pour 10h, J-1 20h pour 14h, J 08h pour 18h |
+| `cron_caution.php` | Toutes les heures | 1) Si `CRON_AUTO_PREREGISTER` : crée les contrats manquants depuis résas Bokun J/J+1/J+2. 2) Si `CRON_CAUTION_ACTIVE` : envoie l'email pré-arrivée (J-1 16h pour 10h, J-1 20h pour 14h, J 08h pour 18h). |
 | `cron_closeouts.php` | Toutes les 15 min | Blocage voitures overcapacity + libération si annulation |
 | `webhook_sarbacane.php` | Temps réel (push) | Réception statuts email (delivered, bounce, open…) |
 | `sync_gyg_reviews.php` | À chaque chargement de index.php (cache 24h) | Scrape avis GYG via JSON-LD |
@@ -221,12 +241,23 @@ Plus de `.env` en clair. Toutes les clés sont chiffrées AES-128-CBC + HMAC-SHA
 | `GOOGLE_MAPS_API_KEY` / `GOOGLE_PLACES_API_KEY` | tablette.php, contrat.php |
 | `RECAPTCHA_SITE_KEY` / `RECAPTCHA_API_KEY` / `RECAPTCHA_PROJECT_ID` | index.php (formulaire contact) |
 | `SOGE_MODE` / `SOGE_TEST_*` / `SOGE_PROD_*` / `SOGE_CAUTION_AMOUNT` | test_sogecommerce.php — en attente activation API REST Sogecommerce |
-| `STRIPE_MODE` | `test` actuellement — passer en `live` quand le flow link_mode est ouvert aux clients |
-| `STRIPE_TEST_*` / `STRIPE_LIVE_*` / `STRIPE_CAUTION_AMOUNT` | stripe_caution.php, webhook_stripe.php, contrat.php |
+| `STRIPE_TEST_*` / `STRIPE_LIVE_*` | stripe_caution.php, webhook_stripe.php, contrat.php — clés chiffrées, restent dans config.php |
 | `STRIPE_LIVE_WEBHOOK_SECRET` / `STRIPE_TEST_WEBHOOK_SECRET` | webhook_stripe.php (selon STRIPE_MODE) |
 | `STRIPE_TIP_WEBHOOK_SECRET` | tip_webhook.php (webhook Connect) |
 | `TIP_PLATFORM_FEE_PERCENT` | tip_api.php — commission plateforme (défaut : 0.10 = 10%, en clair) |
-| `MAIL_TEST_OVERRIDE` | Tous les fichiers envoyant des emails — `null` en prod, adresse de redirection en test |
+
+Les constantes opérationnelles suivantes sont chargées depuis `nomadrive_settings` (BDD) via `config.php` :
+
+| Constante | Clé BDD | Défaut | Rôle |
+|---|---|---|---|
+| `STRIPE_MODE` | `stripe_mode` | `test` | Mode Stripe live/test |
+| `MAIL_TEST_OVERRIDE` | `mail_test_override` | `null` | Redirection emails (vide = prod) |
+| `CAUTION_MONTANT` | `caution_montant_eur` | `500` | Montant caution en € (affiché) |
+| `STRIPE_CAUTION_AMOUNT` | `caution_montant_eur` | `50000` | Montant en centimes pour Stripe |
+| `CRON_CAUTION_ACTIVE` | `cron_caution_active` | `0` | Active l'envoi email pré-arrivée |
+| `CRON_AUTO_PREREGISTER` | `cron_auto_preregister` | `0` | Active le pré-enregistrement Bokun → contrats |
+
+Modifiable via `settings.php` (super-admin MADI uniquement — voir section ci-dessous).
 
 ---
 

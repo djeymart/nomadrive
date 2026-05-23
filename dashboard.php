@@ -175,7 +175,7 @@ if ($action === 'save_etat_apres') {
   $stmtCaut->execute([$dos['contrat_id']]);
   $activeCaution = $stmtCaut->fetch(PDO::FETCH_ASSOC);
   if ($activeCaution && $activeCaution['stripe_payment_intent_id']) {
-    $stripeKey = STRIPE_MODE === 'live' ? STRIPE_LIVE_SECRET_KEY : STRIPE_TEST_SECRET_KEY;
+    $stripeKey = STRIPE_MODE === 'live' ? NDR_STRIPE_LIVE_SECRET_KEY : NDR_STRIPE_TEST_SECRET_KEY;
     \Stripe\Stripe::setApiKey($stripeKey);
     try {
       $pi = \Stripe\PaymentIntent::retrieve($activeCaution['stripe_payment_intent_id']);
@@ -454,17 +454,22 @@ if ($view === 'dashboard') {
            c.date_debut, c.heure_debut,
            CONCAT('ND-', LPAD(c.id, 5, '0')) AS ref,
            sc.status AS caution_status,
-           c.url_permis_recto IS NOT NULL AS has_permis,
-           c.url_contrat_pdf  IS NOT NULL AS has_pdf
+           (c.url_permis_recto IS NOT NULL AND c.url_permis_recto != '') AS has_permis,
+           (c.url_contrat_pdf  IS NOT NULL AND c.url_contrat_pdf  != '') AS has_pdf
     FROM nomadrive_contrats c
     LEFT JOIN nomadrive_dossiers d ON d.contrat_id = c.id AND d.statut = 'ouvert'
     LEFT JOIN nomadrive_stripe_cautions sc ON sc.contrat_id = c.id
       AND sc.id = (SELECT MAX(id) FROM nomadrive_stripe_cautions WHERE contrat_id = c.id)
     WHERE c.signature IS NOT NULL
       AND d.id IS NULL
+      AND (
+        c.date_debut > CURDATE()
+        OR (c.date_debut = CURDATE() AND c.heure_debut >= CURTIME())
+      )
     ORDER BY c.date_debut ASC, c.heure_debut ASC
   ")->fetchAll(PDO::FETCH_ASSOC);
 }
+$nd_page = 'dashboard';
 ?>
 <!DOCTYPE html>
 <html lang="fr">
@@ -1061,6 +1066,8 @@ if ($view === 'dashboard') {
 </head>
 
 <body>
+
+  <?php if ($view !== 'login'): include __DIR__ . '/_navbar.php'; endif; ?>
 
   <?php if ($view === 'login'): ?>
     <!-- ══════════════════════════════════════════════════════

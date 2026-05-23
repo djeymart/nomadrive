@@ -13,6 +13,37 @@ require_once $madiDir . '/php/config.php';
 require_once __DIR__ . '/config.php';
 $db1->query("SET NAMES 'utf8mb4'");
 
+// ── Auto-pré-enregistrement Bokun → contrats (désactivé par défaut) ───────────
+// Crée un nomadrive_contrats minimal pour chaque résa Bokun confirmée J/J+1/J+2
+// qui n'a pas encore de contrat lié, afin que le cron puisse leur envoyer l'email.
+if (CRON_AUTO_PREREGISTER) {
+    $bokun_sql = "
+        SELECT nc.id, nc.first_name, nc.last_name, nc.email,
+               DATE(nc.start_datetime)  AS date_debut,
+               TIME(nc.start_datetime)  AS heure_debut
+        FROM nomadrive_customers nc
+        WHERE nc.booking_status = 'CONFIRMED'
+          AND DATE(nc.start_datetime) BETWEEN CURDATE() AND DATE_ADD(CURDATE(), INTERVAL 2 DAY)
+          AND nc.email IS NOT NULL AND nc.email != ''
+          AND NOT EXISTS (
+              SELECT 1 FROM nomadrive_contrats c WHERE c.bokun_booking_id = nc.id
+          )
+    ";
+    $bookings = $db1->query($bokun_sql)->fetchAll(PDO::FETCH_ASSOC);
+    foreach ($bookings as $b) {
+        $db1->prepare("INSERT INTO nomadrive_contrats (nom, prenom, email, date_debut, heure_debut, signature, bokun_booking_id) VALUES (?,?,?,?,?,'',?)")
+            ->execute([strtoupper($b['last_name']), $b['first_name'], $b['email'], $b['date_debut'], $b['heure_debut'], $b['id']]);
+        echo date('[Y-m-d H:i]') . " [AUTO] Contrat pré-créé : {$b['first_name']} {$b['last_name']} ({$b['date_debut']}).\n";
+    }
+    if (empty($bookings)) echo date('[Y-m-d H:i]') . " [AUTO] Aucune résa Bokun sans contrat.\n";
+}
+
+// Arrêt si l'envoi d'emails est désactivé
+if (!CRON_CAUTION_ACTIVE) {
+    echo date('[Y-m-d H:i]') . " Cron emails désactivé (cron_caution_active = 0).\n";
+    exit;
+}
+
 // Fenêtre : contrats dont le moment d'envoi calculé est dans la dernière heure
 $sql = "
     SELECT c.id AS contrat_id, c.nom, c.prenom, c.email,
@@ -48,7 +79,8 @@ function buildPreArrivalBody(
     string $firstName,
     string $whenEn,
     string $whenFr,
-    string $contractUrl,
+    string $contractUrlEn,
+    string $contractUrlFr,
     string $amountStr
 ): string {
     return <<<HTML
@@ -73,9 +105,9 @@ function buildPreArrivalBody(
       <tr>
         <td style="padding:40px 40px 8px;">
           <p style="margin:0 0 12px;font-size:18px;font-weight:700;color:#0f172a;">See you soon, {$firstName}!</p>
-          <p style="margin:0 0 24px;font-size:15px;color:#334155;line-height:1.6;">Your NOMADRIVE experience is booked for <strong>{$whenEn}</strong>. Prepare your arrival in a few minutes — it only takes a click.</p>
+          <p style="margin:0 0 20px;font-size:15px;color:#334155;line-height:1.6;">Your NOMADRIVE experience is booked for <strong>{$whenEn}</strong>. Prepare your arrival in a few minutes — it only takes a click.</p>
           <div style="text-align:center;margin:0 0 20px;">
-            <a href="{$contractUrl}" style="display:inline-block;background:#0f172a;color:#ffffff;font-size:15px;font-weight:700;padding:16px 40px;border-radius:10px;text-decoration:none;">Prepare my arrival</a>
+            <a href="{$contractUrlEn}" style="display:inline-block;background:#0f172a;color:#ffffff;font-size:15px;font-weight:700;padding:16px 40px;border-radius:10px;text-decoration:none;">Prepare my arrival</a>
           </div>
           <table cellpadding="0" cellspacing="0" style="width:100%;margin:0 0 8px;">
             <tr>
@@ -106,9 +138,9 @@ function buildPreArrivalBody(
       <tr>
         <td style="padding:0 40px 40px;">
           <p style="margin:0 0 12px;font-size:18px;font-weight:700;color:#0f172a;">&Agrave; bient&ocirc;t, {$firstName}&nbsp;!</p>
-          <p style="margin:0 0 24px;font-size:15px;color:#334155;line-height:1.6;">Votre exp&eacute;rience NOMADRIVE est pr&eacute;vue le <strong>{$whenFr}</strong>. Pr&eacute;parez votre arriv&eacute;e en quelques minutes depuis chez vous.</p>
+          <p style="margin:0 0 20px;font-size:15px;color:#334155;line-height:1.6;">Votre exp&eacute;rience NOMADRIVE est pr&eacute;vue le <strong>{$whenFr}</strong>. Pr&eacute;parez votre arriv&eacute;e en quelques minutes depuis chez vous.</p>
           <div style="text-align:center;margin:0 0 20px;">
-            <a href="{$contractUrl}" style="display:inline-block;background:#0f172a;color:#ffffff;font-size:15px;font-weight:700;padding:16px 40px;border-radius:10px;text-decoration:none;">Pr&eacute;parer mon arriv&eacute;e</a>
+            <a href="{$contractUrlFr}" style="display:inline-block;background:#0f172a;color:#ffffff;font-size:15px;font-weight:700;padding:16px 40px;border-radius:10px;text-decoration:none;">Pr&eacute;parer mon arriv&eacute;e</a>
           </div>
           <table cellpadding="0" cellspacing="0" style="width:100%;margin:0 0 8px;">
             <tr>
@@ -163,18 +195,20 @@ foreach ($contrats as $c) {
     }
 
     // Paramètres email
-    $contract_url = $baseUrl . '/contrat.php?' . $qs;
-    $amount_str   = number_format((int)STRIPE_CAUTION_AMOUNT / 100, 0, '.', '') . ' €';
-    $date_fr      = $c['date_debut'] ? (new DateTime($c['date_debut']))->format('d/m/Y') : '';
-    $heure_str    = !empty($c['heure_debut']) ? substr($c['heure_debut'], 0, 5) : '';
-    $when_en      = $date_fr . ($heure_str ? ' at ' . $heure_str : '');
-    $when_fr      = $date_fr . ($heure_str ? ' &agrave; ' . $heure_str : '');
+    $contract_url_en = $baseUrl . '/contrat.php?' . $qs . '&lang=en';
+    $contract_url_fr = $baseUrl . '/contrat.php?' . $qs . '&lang=fr';
+    $amount_str      = number_format((int)STRIPE_CAUTION_AMOUNT / 100, 0, '.', '') . ' €';
+    $date_fr         = $c['date_debut'] ? (new DateTime($c['date_debut']))->format('d/m/Y') : '';
+    $heure_str       = !empty($c['heure_debut']) ? substr($c['heure_debut'], 0, 5) : '';
+    $when_en         = $date_fr . ($heure_str ? ' at ' . $heure_str : '');
+    $when_fr         = $date_fr . ($heure_str ? ' &agrave; ' . $heure_str : '');
 
     $body = buildPreArrivalBody(
         htmlspecialchars($c['prenom']),
         $when_en,
         $when_fr,
-        $contract_url,
+        $contract_url_en,
+        $contract_url_fr,
         $amount_str
     );
 

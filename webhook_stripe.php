@@ -12,13 +12,13 @@ require_once $madiDir . '/php/config.php';
 require_once __DIR__ . '/config.php';
 $db1->query("SET NAMES 'utf8mb4'");
 
-$stripeKey = STRIPE_MODE === 'live' ? STRIPE_LIVE_SECRET_KEY : STRIPE_TEST_SECRET_KEY;
+$stripeKey = STRIPE_MODE === 'live' ? NDR_STRIPE_LIVE_SECRET_KEY : NDR_STRIPE_TEST_SECRET_KEY;
 \Stripe\Stripe::setApiKey($stripeKey);
 
 $payload   = file_get_contents('php://input');
 $sigHeader = $_SERVER['HTTP_STRIPE_SIGNATURE'] ?? '';
 
-$webhookSecret = STRIPE_MODE === 'live' ? STRIPE_LIVE_WEBHOOK_SECRET : STRIPE_TEST_WEBHOOK_SECRET;
+$webhookSecret = STRIPE_MODE === 'live' ? NDR_STRIPE_LIVE_WEBHOOK_SECRET : NDR_STRIPE_TEST_WEBHOOK_SECRET;
 
 try {
     $event = \Stripe\Webhook::constructEvent($payload, $sigHeader, $webhookSecret);
