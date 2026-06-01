@@ -22,7 +22,7 @@ from playwright.async_api import async_playwright
 
 # ── Configuration ──────────────────────────────────────────────────────────────
 GYG_URL      = "https://www.getyourguide.com/nice-l314/discover-the-riviera-and-nice-by-electric-vehicle-t1285889/"
-SERVER_URL   = "https://nomadrive.fr/push_reviews.php"
+SERVER_URL   = "https://nomadrive.fr/api/push_reviews.php"
 PUSH_TOKEN   = "ndpush_k9x2m7q4r8w1z3p5"
 # ──────────────────────────────────────────────────────────────────────────────
 

@@ -10,7 +10,7 @@ require_once __DIR__ . '/config.php';
 $db1->query("SET NAMES 'utf8mb4'");
 try { $db1->exec("ALTER TABLE nomadrive_customers ADD COLUMN closeout_resource_ids VARCHAR(200) NULL DEFAULT NULL"); } catch (PDOException $e) {}
 
-require_once __DIR__ . '/nomadrive_auth.php';
+require_once __DIR__ . '/includes/nomadrive_auth.php';
 
 // ── Auth — même système que dashboard.php ─────────────────────────────────────
 if (isset($_POST['action']) && $_POST['action'] === 'login') {
@@ -1268,7 +1268,7 @@ tbody td { padding: 11px 16px; color: #cbd5e1; vertical-align: middle; }
 </head>
 <body>
 
-<?php include __DIR__ . '/_navbar.php'; ?>
+<?php include __DIR__ . '/includes/_navbar.php'; ?>
 
 <div class="module-nav">
     <button class="module-tab active" id="tab-btn-avis" onclick="switchTab('avis')">Avis clients</button>
@@ -2071,7 +2071,7 @@ async function createDossier(data, btn) {
     btn.disabled = true; btn.textContent = '...';
     try {
         const body = Object.entries(data).map(([k,v]) => encodeURIComponent(k) + '=' + encodeURIComponent(v)).join('&') + '&action=create_dossier';
-        const r = await fetch('stripe_caution.php', {method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded'}, body});
+        const r = await fetch('api/stripe_caution.php', {method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded'}, body});
         const d = await r.json();
         if (d.success) { location.reload(); } else { alert('Erreur : ' + (d.message || '')); btn.disabled = false; btn.textContent = 'Créer dossier'; }
     } catch(e) { alert('Erreur réseau'); btn.disabled = false; }
@@ -2082,7 +2082,7 @@ async function manageSendCaution(contratId, cautionId, btn) {
     btn.disabled = true;
     btn.textContent = '...';
     try {
-        const post = (data) => fetch('stripe_caution.php', {
+        const post = (data) => fetch('api/stripe_caution.php', {
             method: 'POST',
             headers: {'Content-Type': 'application/x-www-form-urlencoded'},
             body: Object.entries(data).map(([k,v]) => encodeURIComponent(k) + '=' + encodeURIComponent(v)).join('&')

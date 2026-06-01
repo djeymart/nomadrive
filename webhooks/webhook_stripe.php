@@ -1,15 +1,15 @@
 <?php
 // ── webhook_stripe.php — Événements Stripe compte principal (caution) ────────
-// URL à configurer dans le dashboard Stripe : https://nomadrive.fr/webhook_stripe.php
+// URL à configurer dans le dashboard Stripe : https://nomadrive.fr/webhooks/webhook_stripe.php
 // Événements à activer : checkout.session.completed, payment_intent.succeeded,
 //                        payment_intent.canceled
 
 $madiDir = '/var/www/html/madi.mt';
-if (!is_dir($madiDir)) $madiDir = dirname(__DIR__);
+if (!is_dir($madiDir)) $madiDir = dirname(dirname(__DIR__));
 require_once $madiDir . '/vendor/autoload.php';
 require_once $madiDir . '/php/fonctions.php';
 require_once $madiDir . '/php/config.php';
-require_once __DIR__ . '/config.php';
+require_once dirname(__DIR__) . '/config.php';
 $db1->query("SET NAMES 'utf8mb4'");
 
 $stripeKey = STRIPE_MODE === 'live' ? NDR_STRIPE_LIVE_SECRET_KEY : NDR_STRIPE_TEST_SECRET_KEY;

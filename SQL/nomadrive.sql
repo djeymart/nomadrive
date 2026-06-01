@@ -30,6 +30,7 @@ CREATE TABLE `nomadrive_contrats` (
   `vehicule` varchar(200) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `date_debut` date DEFAULT NULL,
   `heure_debut` time DEFAULT NULL,
+  `bokun_booking_id` int DEFAULT NULL,
   `dossier_empreinte` varchar(100) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `signature` longtext COLLATE utf8mb4_unicode_ci NOT NULL,
   `url_contrat_pdf` varchar(500) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
@@ -38,7 +39,8 @@ CREATE TABLE `nomadrive_contrats` (
   PRIMARY KEY (`id`),
   KEY `idx_email` (`email`),
   KEY `idx_created_at` (`created_at`),
-  KEY `idx_vehicule_id` (`vehicule_id`)
+  KEY `idx_vehicule_id` (`vehicule_id`),
+  KEY `idx_bokun_booking_id` (`bokun_booking_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 
@@ -191,7 +193,34 @@ CREATE TABLE `nomadrive_settings` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 INSERT INTO `nomadrive_settings` (`cle`, `valeur`) VALUES
-('admin_password_hash',	'96357b99a1c3d3a760332c989a2743dd5ef875e3c2b79466580218f8963e3099');
+('admin_password_hash',	'96357b99a1c3d3a760332c989a2743dd5ef875e3c2b79466580218f8963e3099'),
+('caution_montant_eur',	'500'),
+('cron_auto_preregister',	'0'),
+('cron_caution_active',	'0'),
+('mail_test_override',	''),
+('nd_settings_secret',	'75342e695b636cd59eb771f1e8ce81fdbeb661e6c759b7a93c8ae59b9f682670'),
+('stripe_mode',	'live');
+
+DROP TABLE IF EXISTS `nomadrive_stripe_cautions`;
+CREATE TABLE `nomadrive_stripe_cautions` (
+  `id` int unsigned NOT NULL AUTO_INCREMENT,
+  `contrat_id` int unsigned NOT NULL,
+  `dossier_id` int unsigned DEFAULT NULL,
+  `stripe_session_id` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `stripe_payment_intent_id` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `amount` int NOT NULL COMMENT 'Centimes EUR',
+  `currency` char(3) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'eur',
+  `status` enum('pending','authorized','captured','canceled','expired') COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'pending',
+  `checkout_url` text COLLATE utf8mb4_unicode_ci,
+  `email_sent_at` datetime DEFAULT NULL,
+  `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` datetime DEFAULT NULL ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  KEY `contrat_id` (`contrat_id`),
+  KEY `stripe_session_id` (`stripe_session_id`(50)),
+  KEY `stripe_payment_intent_id` (`stripe_payment_intent_id`(50))
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 
 DROP TABLE IF EXISTS `nomadrive_vehicules`;
 CREATE TABLE `nomadrive_vehicules` (
@@ -223,4 +252,4 @@ INSERT INTO `nomadrive_vehicules` (`id`, `immatriculation`, `marque`, `modele`, 
 (9,	'HH-108-YV',	'FIAT',	'TOPOLINO',	'#219411',	NULL,	'afdbb1a9d9774ef0',	1,	0,	'2026-04-11 16:34:31',	'2026-04-17 17:45:01'),
 (10,	'HH-902-YQ',	'FIAT',	'TOPOLINO',	'#219411',	NULL,	'1fc6f289bbbd121c',	0,	0,	'2026-04-11 16:34:31',	'2026-04-17 17:47:46');
 
--- 2026-05-16 17:28:57 UTC
+-- 2026-05-23 12:06:17 UTC

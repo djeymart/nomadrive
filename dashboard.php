@@ -12,7 +12,7 @@ require_once $madiDir . '/php/config.php';
 require_once __DIR__ . '/config.php';
 $db1->query("SET NAMES 'utf8mb4'");
 
-require_once __DIR__ . '/nomadrive_auth.php';
+require_once __DIR__ . '/includes/nomadrive_auth.php';
 
 $gcp_bucket = 'madi_bucket';
 $gcp_base_url = "https://storage.googleapis.com/$gcp_bucket";
@@ -1067,7 +1067,7 @@ $nd_page = 'dashboard';
 
 <body>
 
-  <?php if ($view !== 'login'): include __DIR__ . '/_navbar.php'; endif; ?>
+  <?php if ($view !== 'login'): include __DIR__ . '/includes/_navbar.php'; endif; ?>
 
   <?php if ($view === 'login'): ?>
     <!-- ══════════════════════════════════════════════════════
@@ -1847,7 +1847,7 @@ $nd_page = 'dashboard';
     // ── Caution Stripe ────────────────────────────────────────────────────────────
     async function cautionPost(data) {
       const body = Object.entries(data).map(([k, v]) => encodeURIComponent(k) + '=' + encodeURIComponent(v)).join('&');
-      const r = await fetch('stripe_caution.php', { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body });
+      const r = await fetch('api/stripe_caution.php', { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body });
       return r.json();
     }
 

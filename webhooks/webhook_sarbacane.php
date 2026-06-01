@@ -1,13 +1,13 @@
 <?php
 // ── Webhook Sarbacane SendKit — réception des événements email ────────────────
-// URL à configurer dans Sarbacane : https://nomadrive.fr/webhook_sarbacane.php
+// URL à configurer dans Sarbacane : https://nomadrive.fr/webhooks/webhook_sarbacane.php
 // Événements attendus : delivered, bounce, complaint, unsubscribe, open, click
 
 $madiDir = '/var/www/html/madi.mt';
 require_once $madiDir . '/vendor/autoload.php';
 require_once $madiDir . '/php/fonctions.php';
 require_once $madiDir . '/php/config.php';
-require_once __DIR__ . '/config.php';
+require_once dirname(__DIR__) . '/config.php';
 $db1->query("SET NAMES 'utf8mb4'");
 
 header('Content-Type: application/json');

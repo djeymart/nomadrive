@@ -7,11 +7,11 @@
  */
 
 $madiDir = '/var/www/html/madi.mt';
-if (!is_dir($madiDir)) $madiDir = dirname(__DIR__);
+if (!is_dir($madiDir)) $madiDir = dirname(dirname(__DIR__));
 require_once $madiDir . '/vendor/autoload.php';
 require_once $madiDir . '/php/fonctions.php';
 require_once $madiDir . '/php/config.php';
-require_once __DIR__ . '/config.php';
+require_once dirname(__DIR__) . '/config.php';
 $db1->query("SET NAMES 'utf8mb4'");
 
 header('Content-Type: application/json');

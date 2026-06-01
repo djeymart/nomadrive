@@ -9,7 +9,7 @@ require_once $madiDir . '/vendor/autoload.php';
 require_once $madiDir . '/php/fonctions.php';
 require_once $madiDir . '/php/config.php';
 require_once __DIR__ . '/config.php';
-require_once __DIR__ . '/nomadrive_auth.php';
+require_once __DIR__ . '/includes/nomadrive_auth.php';
 $db1->query("SET NAMES 'utf8mb4'");
 
 // ── Token HMAC en premier (avant ndIsAuth) ────────────────────────────────────
@@ -120,7 +120,7 @@ $nd_page = 'settings';
   </style>
 </head>
 <body>
-<?php include __DIR__ . '/_navbar.php'; ?>
+<?php include __DIR__ . '/includes/_navbar.php'; ?>
 
 <div class="wrap">
   <h1>Paramètres opérationnels</h1>

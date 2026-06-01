@@ -6,7 +6,7 @@ require_once $madiDir . '/vendor/autoload.php';
 require_once $madiDir . '/php/fonctions.php';
 require_once $madiDir . '/php/config.php';
 require_once __DIR__ . '/config.php';
-require_once __DIR__ . '/sync_gyg_reviews.php';
+require_once __DIR__ . '/includes/sync_gyg_reviews.php';
 $db1->query("SET NAMES 'utf8mb4'");
 
 // ─── Langue ──────────────────────────────────────────────────────────────────

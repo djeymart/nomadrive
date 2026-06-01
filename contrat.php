@@ -14,7 +14,7 @@ require_once $madiDir . '/php/config.php';
 require_once __DIR__ . '/config.php';
 $db1->query("SET NAMES 'utf8mb4'");
 
-require_once __DIR__ . '/nomadrive_auth.php';
+require_once __DIR__ . '/includes/nomadrive_auth.php';
 
 // ── Lien pré-arrivée sécurisé (token HMAC) ────────────────────────────────────
 function ndContratToken(int $id): string {
